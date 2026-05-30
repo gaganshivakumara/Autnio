@@ -2,20 +2,15 @@ import { useRef, useState } from "react";
 import { SiteNav } from "../landing/SiteNav";
 import { CameraFeed } from "../vision/CameraFeed";
 import { discoverFromFrame } from "../vision/productDiscovery";
-import { ChatInterface } from "../chat/ChatInterface";
 
 export function ProductDiscoveryPage() {
   const [discoveryStatus, setDiscoveryStatus] = useState("");
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const captureRef = useRef<(() => void) | null>(null);
 
   const handleDiscoveryFrame = async (blob: Blob): Promise<void> => {
     setDiscoveryStatus("Looking…");
-    const productSession = `product-${crypto.randomUUID()}`;
-    setSessionId(productSession);
     try {
       await discoverFromFrame(blob, {
-        sessionId: productSession,
         onProgress: (stage, detail) => {
           if (stage === "identifying") setDiscoveryStatus("Identifying what you're looking at…");
           else if (stage === "scraping") setDiscoveryStatus(`Researching: ${detail ?? ""}…`);
@@ -53,11 +48,7 @@ export function ProductDiscoveryPage() {
               registerCapture={(fn) => { captureRef.current = fn; }}
             />
             {discoveryStatus && <pre className="dash-pre">{discoveryStatus}</pre>}
-          </section>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <ChatInterface sessionId={sessionId} onSessionId={setSessionId} />
-          </div>
+        </section>
         </div>
       </main>
     </div>
