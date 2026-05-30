@@ -4,6 +4,7 @@ import { Capabilities, Statement, Footer } from "./Sections";
 import { ChatInterface, type ChatHandle } from "../chat/ChatInterface";
 import { CameraFeed } from "../vision/CameraFeed";
 import { analyzeFrame, uploadFrame, type VisionMode } from "../vision/visionApi";
+import { discoverFromFrame } from "../vision/productDiscovery";
 import { speakText } from "../voice/VoiceOutput";
 import { useWakeWord } from "../voice/useWakeWord";
 
@@ -20,6 +21,10 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
   const [visionPrompt, setVisionPrompt] = useState("Describe the scene and identify important objects.");
   const [visionResult, setVisionResult] = useState("");
   const [visionBusy,   setVisionBusy]   = useState(false);
+
+  // Imperative handle to the camera shutter — registered by CameraFeed and
+  // called when the user says a capture phrase in the chat (e.g. "what is this").
+  const captureRef = useRef<(() => void) | null>(null);
 
   const morphRef      = useRef<ChatHandle>(null);
   const [chatInView, setChatInView] = useState(false);
@@ -38,10 +43,26 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
   const handleFrame = async (blob: Blob): Promise<void> => {
     setVisionBusy(true); setVisionResult("");
     try {
-      const upload = await uploadFrame(blob, savedCode || "anonymous");
-      const result = await analyzeFrame({ imageS3Key: upload.imageS3Key, mode: visionMode, prompt: visionPrompt });
-      setVisionResult(result.result);
-      await speakText(result.result);
+      if (visionMode === "detect") {
+        // detect mode: full product discovery — Qwen3 identifies → agent scrapes Amazon → Polly speaks
+        await discoverFromFrame(blob, {
+          userId: savedCode || "anonymous",
+          sessionId,
+          onProgress: (stage, detail) => {
+            if (stage === "capturing")   setVisionResult("Got it. Looking at that now…");
+            else if (stage === "identifying") setVisionResult("Identifying what you're looking at…");
+            else if (stage === "scraping")    setVisionResult(`Researching: ${detail ?? ""}…`);
+            else if (stage === "done")        setVisionResult(`Done — ${detail ?? ""}. Ask a follow-up anytime.`);
+            else if (stage === "error")       setVisionResult(detail ?? "Discovery failed");
+          },
+        });
+      } else {
+        // stream mode: Nemotron Nano real-time scene description + Polly TTS
+        const upload = await uploadFrame(blob, savedCode || "anonymous");
+        const result = await analyzeFrame({ imageS3Key: upload.imageS3Key, mode: "stream", prompt: visionPrompt });
+        setVisionResult(result.result);
+        await speakText(result.result);
+      }
     } catch (error) {
       setVisionResult(error instanceof Error ? error.message : "Vision request failed");
     } finally { setVisionBusy(false); }
@@ -74,7 +95,17 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
         </h2>
 
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <ChatInterface ref={morphRef} userId={savedCode || undefined} sessionId={sessionId} onSessionId={setSessionId} />
+          <ChatInterface
+            ref={morphRef}
+            userId={savedCode || undefined}
+            sessionId={sessionId}
+            onSessionId={setSessionId}
+            onCaptureCommand={() => {
+              // Scroll camera into view so the user sees the capture happening
+              document.getElementById("vision")?.scrollIntoView({ behavior: "smooth" });
+              setTimeout(() => captureRef.current?.(), 400);
+            }}
+          />
         </div>
 
         <div style={{ display: "flex", justifyContent: "center", marginTop: "2rem" }}>
@@ -112,13 +143,17 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
         </h2>
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
-            <select value={visionMode} onChange={(e) => setVisionMode(e.target.value as VisionMode)} className="dash-input" style={{ flex: 1 }}>
+            <select value={visionMode} onChange={(e) => setVisionMode(e.target.value as VisionMode)} className="dash-input" style={{ flex: 1 }} aria-label="Vision model">
               <option value="detect">detect — Qwen3-VL-235B</option>
               <option value="stream">stream — Nemotron Nano 2 VL</option>
             </select>
             <input value={visionPrompt} onChange={(e) => setVisionPrompt(e.target.value)} className="dash-input" style={{ flex: 2 }} placeholder="Describe what to look for..." />
           </div>
-          <CameraFeed onFrame={handleFrame} captureLabel={visionBusy ? "Analyzing..." : "Analyze Scene"} />
+          <CameraFeed
+            onFrame={handleFrame}
+            registerCapture={(fn) => { captureRef.current = fn; }}
+            captureLabel={visionBusy ? "Analyzing..." : visionMode === "detect" ? "Discover Product" : "Analyze Scene"}
+          />
           {visionResult && <pre className="dash-pre" style={{ marginTop: "1rem", textAlign: "left" }}>{visionResult}</pre>}
         </div>
       </section>

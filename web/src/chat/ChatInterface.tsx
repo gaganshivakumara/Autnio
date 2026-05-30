@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "motion/react";
 import { ColorOrb } from "@/components/ui/ai-input";
 import { speakText } from "../voice/VoiceOutput";
+import { isCaptureCommand } from "../voice/commands";
 
 const chatEndpoint: string =
   (import.meta.env.VITE_CHAT_ENDPOINT as string | undefined) ??
@@ -59,8 +60,15 @@ function getSR(): (new () => SRInstance) | undefined {
 
 export const ChatInterface = React.forwardRef<
   ChatHandle,
-  { idToken?: string; userId?: string; sessionId?: string; onSessionId?: (id: string) => void }
->(function ChatInterface({ idToken, userId, sessionId, onSessionId }, ref) {
+  {
+    idToken?: string;
+    userId?: string;
+    sessionId?: string;
+    onSessionId?: (id: string) => void;
+    /** If provided, called instead of the agent when user says a capture phrase (e.g. "what is this") */
+    onCaptureCommand?: () => void;
+  }
+>(function ChatInterface({ idToken, userId, sessionId, onSessionId, onCaptureCommand }, ref) {
   const [isOpen, setIsOpen]           = useState(false);
   const [messages, setMessages]       = useState<Message[]>([]);
   const [input, setInput]             = useState("");
@@ -123,7 +131,16 @@ export const ChatInterface = React.forwardRef<
 
   const handleSend = useCallback(async () => {
     const text = input.trim(); if (!text || loading) return;
-    stopListening(); setInput(""); setMessages(prev => [...prev, { role: "user", text }]); setLoading(true);
+    stopListening(); setInput("");
+
+    // Intercept capture-intent phrases and hand off to the camera instead.
+    if (onCaptureCommand && isCaptureCommand(text)) {
+      setMessages(prev => [...prev, { role: "user", text }]);
+      onCaptureCommand();
+      return;
+    }
+
+    setMessages(prev => [...prev, { role: "user", text }]); setLoading(true);
     try {
       const response = await sendMessage(text);
       setMessages(prev => [...prev, { role: "assistant", text: response }]);
@@ -133,7 +150,7 @@ export const ChatInterface = React.forwardRef<
     } catch (e) {
       setMessages(prev => [...prev, { role: "assistant", text: e instanceof Error ? e.message : "Request failed" }]);
     } finally { setLoading(false); }
-  }, [input, loading, sendMessage, idToken, stopListening]);
+  }, [input, loading, sendMessage, idToken, stopListening, onCaptureCommand]);
 
   const handleClose = useCallback(() => { setIsOpen(false); stopListening(); }, [stopListening]);
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

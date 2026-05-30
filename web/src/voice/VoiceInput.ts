@@ -25,16 +25,18 @@ function float32ToPcm16Base64(samples: Float32Array): string {
  * Streaming when the browser produces audio/webm (not ogg-opus).
  */
 export async function recordAndTranscribe(idToken: string): Promise<string> {
-  const RECORD_MS   = 5000;
-  const TARGET_RATE = 16000;
+  const RECORD_MS = 5000;
 
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
   });
 
-  // Use AudioContext at the target rate so no manual resampling is needed
-  const ctx     = new AudioContext({ sampleRate: TARGET_RATE });
-  const source  = ctx.createMediaStreamSource(stream);
+  // Do NOT request a specific sample rate — browsers often ignore it and create
+  // the context at their native rate (44100 or 48000 Hz). We read the actual
+  // rate after creation and pass it to Transcribe.
+  const ctx    = new AudioContext();
+  const ACTUAL_RATE = ctx.sampleRate; // e.g. 44100 or 48000
+  const source = ctx.createMediaStreamSource(stream);
 
   // ScriptProcessor is deprecated but still universally supported;
   // bufferSize 4096 gives ~256 ms chunks at 16 kHz.
@@ -46,13 +48,19 @@ export async function recordAndTranscribe(idToken: string): Promise<string> {
     chunks.push(new Float32Array(data));
   };
 
+  // Mute the output — processor must be connected to destination to fire
+  // onaudioprocess in Chrome, but we don't want playback.
+  const silencer = ctx.createGain();
+  silencer.gain.value = 0;
   source.connect(processor);
-  processor.connect(ctx.destination);
+  processor.connect(silencer);
+  silencer.connect(ctx.destination);
 
   await new Promise<void>((resolve) => setTimeout(resolve, RECORD_MS));
 
   source.disconnect();
   processor.disconnect();
+  silencer.disconnect();
   await ctx.close();
   stream.getTracks().forEach((t) => t.stop());
 
@@ -77,7 +85,7 @@ export async function recordAndTranscribe(idToken: string): Promise<string> {
       audioBase64,
       languageCode:      "en-US",
       mediaEncoding:     "pcm",
-      mediaSampleRateHz: TARGET_RATE,
+      mediaSampleRateHz: ACTUAL_RATE, // read from AudioContext, not assumed
     }),
   });
 
