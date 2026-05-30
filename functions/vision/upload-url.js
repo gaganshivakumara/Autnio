@@ -1,21 +1,19 @@
-// Dev 3/4 — generates a pre-signed S3 PUT URL for camera frame uploads
+// Generates a pre-signed S3 PUT URL for camera frame uploads.
 // The browser uploads the frame directly to S3, then passes the S3 key
 // to the vision Lambda endpoint (POST /vision/image or /vision/text).
 //
 // Env vars: VISION_BUCKET
 // IAM: s3:PutObject on vision bucket granted by FunctionsStack
 //
-// Returns:
-//   { statusCode: 200, body: { result: "ok", data: { uploadUrl, s3Key } } }
-// The browser PUTs the JPEG frame to uploadUrl, then sends s3Key to /vision/image.
+// Returns: { uploadUrl, imageS3Key }
 
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { randomUUID } = require('crypto');
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { randomUUID } from 'crypto';
 
 const s3 = new S3Client({});
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   const userId = event.requestContext?.authorizer?.claims?.sub ?? 'unknown';
   const s3Key = `frames/${userId}/${randomUUID()}.jpg`;
 
@@ -29,6 +27,6 @@ exports.handler = async (event) => {
 
   return {
     statusCode: 200,
-    body: JSON.stringify({ result: 'ok', data: { uploadUrl, s3Key } }),
+    body: JSON.stringify({ uploadUrl, imageS3Key: s3Key }),
   };
 };

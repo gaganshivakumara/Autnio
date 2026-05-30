@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { MorphPanel } from "@/components/ui/ai-input";
 
-const restApiUrl = import.meta.env.VITE_REST_API_URL as string;
+const restApiUrl = import.meta.env.VITE_VOICE_API_URL as string;
 
 export function ChatInterface({ idToken }: { idToken?: string }): JSX.Element {
   const [response, setResponse] = useState("");

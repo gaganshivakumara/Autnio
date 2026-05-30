@@ -1,35 +1,21 @@
 // REST handler: POST /chat
-// Validates Cognito JWT, injects user profile into session state,
-// invokes Bedrock Agent, and persists a session log to DynamoDB.
+// Invokes Bedrock Agent, persists a session log to DynamoDB.
 import { BedrockAgentRuntimeClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
 const bedrock = new BedrockAgentRuntimeClient({ region: process.env.AWS_REGION });
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.AWS_REGION }));
 const TABLE = process.env.DYNAMODB_TABLE ?? 'autnio-main';
 
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.COGNITO_USER_POOL_ID,
-  tokenUse: 'access',
-  clientId: process.env.COGNITO_CLIENT_ID ?? null,
-});
-
 export const handler = async (event) => {
   try {
     const body = typeof event.body === 'string' ? JSON.parse(event.body) : (event.body ?? event);
-    const { prompt, sessionId } = body;
+    const { sessionId } = body;
+    const prompt = body.message ?? body.prompt;
+    const userId = body.userId ?? 'anonymous';
 
-    const authHeader = event.headers?.Authorization ?? event.headers?.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return respond(401, { message: 'Missing or invalid Authorization header' });
-    }
-
-    const claims = await verifier.verify(authHeader.slice(7));
-    const userId = claims.sub;
-
-    if (!prompt) return respond(400, { message: 'Missing required field: prompt' });
+    if (!prompt) return respond(400, { message: 'Missing required field: prompt or message' });
 
     const profileResult = await ddb.send(
       new GetCommand({ TableName: TABLE, Key: { PK: `USER#${userId}`, SK: 'PROFILE' } }),
@@ -77,9 +63,6 @@ export const handler = async (event) => {
 
     return respond(200, { response: responseText, sessionId: agentSessionId });
   } catch (err) {
-    if (err.name === 'JwtExpiredError' || err.name === 'JwtInvalidClaimError') {
-      return respond(401, { message: 'Invalid or expired token' });
-    }
     console.error(err);
     return respond(500, { message: err.message });
   }

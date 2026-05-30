@@ -1,20 +1,31 @@
-// Dev 3 — WebSocket $connect handler
-// Called when a browser client connects to the WebSocket API.
+// WebSocket $connect handler
 // Stores the connection ID in DynamoDB so the dispatch Lambda can push tasks
 // to this user's browser relay.
 //
 // DynamoDB schema (single-table):
-//   PK = CONNECTION#<userId>
+//   PK = CONNECTION#anonymous
 //   SK = META
 //   connectionId = <event.requestContext.connectionId>
 //   ttl = Math.floor(Date.now() / 1000) + 86400  (24h TTL)
 //
-// The JWT token is passed as a query string param: wss://...?token=<id_token>
-// Validate it and extract the userId (sub claim) before writing to DynamoDB.
-//
 // Env vars: DYNAMODB_TABLE
 // IAM: dynamodb:PutItem granted via table.grantReadWriteData in FunctionsStack
 
+import { ddb, TABLE } from '../shared/dynamodb.js';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+
 export const handler = async (event) => {
+  const connectionId = event.requestContext.connectionId;
+
+  await ddb.send(new PutCommand({
+    TableName: TABLE,
+    Item: {
+      PK: 'CONNECTION#anonymous',
+      SK: 'META',
+      connectionId,
+      ttl: Math.floor(Date.now() / 1000) + 86400,
+    },
+  }));
+
   return { statusCode: 200 };
 };
