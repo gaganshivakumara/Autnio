@@ -212,11 +212,13 @@ export class FunctionsStack extends cdk.Stack {
     const apifyResearch = mkFn('ApifyResearch', 'apify-research.handler', 'data');
     const apifyRun = mkFn('ApifyRun', 'apify-run.handler', 'data');
 
-    // Amazon product discovery — searches Amazon and scrapes the first result
-    // via the Apify MCP server (demo-scoped; last-6-months reviews only).
+    // Amazon product discovery — searches Amazon for the first result, then
+    // scrapes its last-6-months reviews (two Apify actors, demo-scoped).
+    // NOTE: APIFY_API_TOKEN must be supplied (e.g. from the apify-token secret)
+    // for this to actually call Apify.
     const productDiscovery = mkFn('ProductDiscovery', 'product-discovery.handler', 'data', {
-      APIFY_MCP_URL: 'https://mcp.apify.com/mcp',
-      APIFY_PRODUCT_ACTOR: 'junglee/amazon-crawler',
+      APIFY_PRODUCT_ACTOR: 'XVDTQc4a7MDTqSTMJ',
+      APIFY_REVIEW_ACTOR: 'gFtgG31RZJYlphznm',
     });
 
     // ── Files (Dev 2) ─────────────────────────────────────────────────────

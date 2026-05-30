@@ -113,8 +113,18 @@ deploy_lambda() {
 
 echo "==> Deploying action group Lambdas..."
 sleep 5
+
+# Apify token: prefer an exported APIFY_TOKEN, otherwise pull it from the
+# Secrets Manager secret (/autnio/dev/apify-token). The scraper stays disabled
+# until this secret has a real value.
+APIFY_TOKEN="${APIFY_TOKEN:-$(aws secretsmanager get-secret-value --secret-id /autnio/dev/apify-token --query SecretString --output text --region "${REGION}" 2>/dev/null || true)}"
+if [[ -z "${APIFY_TOKEN}" || "${APIFY_TOKEN}" == "None" ]]; then
+  echo "    WARNING: no Apify token found (export APIFY_TOKEN=... or set the /autnio/dev/apify-token secret) — product discovery will report 'not configured'."
+  APIFY_TOKEN=""
+fi
+
 deploy_lambda "${PREFIX}-agent-dispatch" "dispatch.handler" ""
-deploy_lambda "${PREFIX}-agent-apify" "apify_scrape.handler" "APIFY_MCP_URL=${APIFY_MCP_URL:-https://mcp.apify.com/mcp},APIFY_PRODUCT_ACTOR=${APIFY_PRODUCT_ACTOR:-junglee/amazon-crawler}"
+deploy_lambda "${PREFIX}-agent-apify" "apify_scrape.handler" "APIFY_TOKEN=${APIFY_TOKEN},APIFY_PRODUCT_ACTOR=${APIFY_PRODUCT_ACTOR:-XVDTQc4a7MDTqSTMJ},APIFY_REVIEW_ACTOR=${APIFY_REVIEW_ACTOR:-gFtgG31RZJYlphznm}"
 deploy_lambda "${PREFIX}-agent-box" "box_ops.handler" ""
 deploy_lambda "${PREFIX}-agent-user" "user_prefs.handler" "DYNAMODB_TABLE=autnio-dev"
 deploy_lambda "${PREFIX}-agent-vision" "vision_action.handler" "ROUTER_FUNCTION_NAME=${ROUTER_FN}"

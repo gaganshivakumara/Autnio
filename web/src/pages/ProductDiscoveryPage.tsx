@@ -68,9 +68,22 @@ export function ProductDiscoveryPage() {
   const [statusText, setStatusText]   = useState("");
   const [result, setResult]           = useState<DiscoveryResult | null>(null);
   const [sessionId, setSessionId]     = useState<string | undefined>(undefined);
+  // The captured still — once a frame is taken it replaces the live video and
+  // stays frozen on screen until the user scans another product.
+  const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const captureRef = useRef<(() => void) | null>(null);
 
+  const scanAnother = (): void => {
+    if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+    setCapturedUrl(null);
+    setScanState("idle");
+    setStatusText("");
+    setResult(null);
+  };
+
   const handleDiscoveryFrame = async (blob: Blob): Promise<void> => {
+    // Freeze the captured frame in place of the live video feed.
+    setCapturedUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob); });
     setScanState("scanning");
     setStatusText("Looking…");
     setResult(null);
@@ -122,11 +135,25 @@ export function ProductDiscoveryPage() {
 
             {/* ── Camera card ─────────────────────────────────────────── */}
             <section className="dash-card">
-              <CameraFeed
-                onFrame={handleDiscoveryFrame}
-                captureLabel={scanState === "scanning" ? "Scanning…" : "Discover Product"}
-                registerCapture={(fn) => { captureRef.current = fn; }}
-              />
+              {capturedUrl ? (
+                // Frozen still — stays on screen instead of the live video.
+                <div className="cameraFeed">
+                  <img
+                    src={capturedUrl}
+                    alt="Captured product"
+                    style={{ width: "100%", borderRadius: 12, display: "block" }}
+                  />
+                  <button type="button" onClick={scanAnother} disabled={scanState === "scanning"}>
+                    {scanState === "scanning" ? "Scanning…" : "Scan another product"}
+                  </button>
+                </div>
+              ) : (
+                <CameraFeed
+                  onFrame={handleDiscoveryFrame}
+                  captureLabel="Discover Product"
+                  registerCapture={(fn) => { captureRef.current = fn; }}
+                />
+              )}
               {scanState !== "idle" && (
                 <div style={{ marginTop: "0.75rem" }}>
                   <StatusBanner state={scanState} text={statusText} />
