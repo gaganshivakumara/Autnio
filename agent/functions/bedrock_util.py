@@ -2,6 +2,13 @@ import json
 
 
 def parse_body(event: dict) -> dict:
+    raw_body = event.get("body")
+    if raw_body:
+        try:
+            return json.loads(raw_body) if isinstance(raw_body, str) else raw_body
+        except json.JSONDecodeError:
+            return {}
+
     body = {}
     request_body = event.get("requestBody") or {}
     content = request_body.get("content") or {}
@@ -18,6 +25,15 @@ def parse_body(event: dict) -> dict:
 
 
 def agent_response(event: dict, status_code: int, payload: dict) -> dict:
+    if not event.get("actionGroup"):
+        return {
+            "statusCode": status_code,
+            "headers": {
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps(payload),
+        }
+
     return {
         "messageVersion": "1.0",
         "response": {

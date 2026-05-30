@@ -1,44 +1,43 @@
-"""Amazon product discovery for the Bedrock Agent web-data action group.
+"""Lightweight Amazon product discovery for the Bedrock Agent web-data action group.
 
-Two-step, demo-scoped, cost-bounded Amazon lookup via Apify (REST run-sync):
-
-  1. PRODUCT search  — actor APIFY_PRODUCT_ACTOR (junglee/free-amazon-product-scraper).
-     Searches Amazon for the (<=5 word) query and scrapes ONLY the first result.
-  2. REVIEW scrape   — actor APIFY_REVIEW_ACTOR (web_wanderer/amazon-reviews-extractor).
-     Pulls reviews for that product, restricted to the LAST 6 MONTHS (start_date).
-
-Then it returns a compact summary plus a ready-to-speak narration shaped as:
+Demo-oriented: takes a short (<= 5 word) search description, searches Amazon via
+the hosted Apify MCP server (mcp.apify.com), scrapes ONLY the first result, and
+returns a compact summary plus a ready-to-speak narration shaped as:
 
     "I now have all the information about <name>. <3-4 sentence summary>
      You can now ask questions about the product."
 
-COST GUARD (hard rules): only the single top product is scraped, and reviews are
-limited to the last 6 months (enforced via the actor's start_date AND re-filtered
-client-side).
+COST GUARD (hard rule): never scrape data older than 6 months — reviews dated
+before the cutoff are dropped and we only ever pull the single top result.
+
+Falls back to the Apify REST API when APIFY_MCP_URL is not configured.
 """
 from __future__ import annotations
 
 import json
 import os
-import re
-import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
 from bedrock_util import agent_response, parse_body
 
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
-PRODUCT_ACTOR = os.environ.get("APIFY_PRODUCT_ACTOR", "XVDTQc4a7MDTqSTMJ")  # junglee/free-amazon-product-scraper
-REVIEW_ACTOR = os.environ.get("APIFY_REVIEW_ACTOR", "gFtgG31RZJYlphznm")    # web_wanderer/amazon-reviews-extractor
+APIFY_MCP_URL = os.environ.get("APIFY_MCP_URL", "")
+PRODUCT_ACTOR = os.environ.get("APIFY_PRODUCT_ACTOR", "XVDTQc4a7MDTqSTMJ")
+REVIEW_ACTOR = os.environ.get("APIFY_REVIEW_ACTOR", "gFtgG31RZJYlphznm")
 
 _TOKEN_CONFIGURED = bool(APIFY_TOKEN) and not APIFY_TOKEN.startswith("REPLACE")
 _SIX_MONTHS = timedelta(days=182)
-_ASIN_RE = re.compile(r"/(?:dp|gp/product|product-reviews)/([A-Z0-9]{10})")
 
 
 def handler(event: dict, context) -> dict:
     body = parse_body(event)
     query = body.get("query", "")
+    try:
+        max_reviews = min(int(body.get("maxReviews", 3)), 5)
+    except (TypeError, ValueError):
+        max_reviews = 3
+
     if not query:
         return agent_response(event, 400, {"result": "query is required", "data": {}})
 
@@ -53,106 +52,140 @@ def handler(event: dict, context) -> dict:
             },
         )
 
-    # Keep the search cheap and predictable: at most 5 words.
+    # Keep the search cheap and predictable: trim to <= 5 words.
     search = " ".join(str(query).split()[:5])
-
-    # ── 1. Product search — first result only ──────────────────────────────
     try:
-        products = _run_sync(
+        items = _run_actor(
             PRODUCT_ACTOR,
             {
-                "categoryUrls": [{"url": f"https://www.amazon.com/s?k={urllib.parse.quote(search)}"}],
+                "categoryUrls": [{"url": f"https://www.amazon.com/s?k={_quote_plus(search)}"}],
                 "maxItemsPerStartUrl": 1,
                 "maxSearchPagesPerStartUrl": 1,
             },
-            limit=1,
+            1,
         )
     except Exception as exc:  # noqa: BLE001
-        return agent_response(event, 200, {"result": f"Couldn't search Amazon for {search}", "message": str(exc), "data": {}})
+        return agent_response(
+            event,
+            200,
+            {"result": f"Discovery failed for {search}", "message": str(exc), "data": {}},
+        )
 
-    if not products:
+    if not items:
         return agent_response(
             event,
             200,
             {"result": f"I couldn't find anything on Amazon for \"{search}\".", "data": {"query": search, "found": False}},
         )
 
-    product = _map_product(products[0])
-
-    # ── 2. Reviews — last 6 months only ────────────────────────────────────
-    now = datetime.now(timezone.utc)
-    cutoff = now - _SIX_MONTHS
-    asin = product.get("asin") or _extract_asin(product.get("url"))
-    if asin:
-        try:
-            raw_reviews = _run_sync(
-                REVIEW_ACTOR,
-                {
-                    "products": [asin],
-                    "limit": 10,
-                    "sort": "recent",
-                    "start_date": cutoff.strftime("%Y-%m-%d"),
-                    "end_date": now.strftime("%Y-%m-%d"),
-                },
-                limit=10,
-            )
-            product["topReviews"] = _recent_reviews(raw_reviews, cutoff, 5)
-        except Exception:  # noqa: BLE001 — reviews are best-effort
-            product["topReviews"] = []
-    else:
-        product["topReviews"] = []
-
-    spoken = _narrate(product)
-    return agent_response(event, 200, {"result": spoken, "data": {"query": search, "found": True, "asin": asin, **product}})
+    data = _map_product(items[0], max_reviews)
+    spoken = _narrate(data)
+    return agent_response(event, 200, {"result": spoken, "data": {"query": search, "found": True, **data}})
 
 
-def _run_sync(actor_id: str, run_input: dict, limit: int) -> list:
-    """Run an actor synchronously and return its dataset items (Apify REST)."""
-    url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items?token={APIFY_TOKEN}&limit={limit}"
+def _run_actor(actor_id: str, run_input: dict, limit: int = 1) -> list:
+    if APIFY_MCP_URL:
+        return _run_via_mcp(actor_id, run_input)
+    return _run_via_rest(actor_id, run_input, limit)
+
+
+def _run_via_mcp(actor_id: str, run_input: dict) -> list:
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "call-actor", "arguments": {"actor": actor_id, "input": run_input, "maxItems": 1}},
+    }
+    req = urllib.request.Request(
+        APIFY_MCP_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "Authorization": f"Bearer {APIFY_TOKEN}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        body = resp.read().decode("utf-8")
+    return _extract_items(_parse_rpc(body))
+
+
+def _run_via_rest(actor_id: str, run_input: dict, limit: int = 1) -> list:
+    base = f"https://api.apify.com/v2/acts/{actor_id.replace('/', '~')}"
+    url = f"{base}/run-sync-get-dataset-items?token={APIFY_TOKEN}&limit={limit}"
     req = urllib.request.Request(
         url,
         data=json.dumps(run_input).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=180) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _map_product(p: dict) -> dict:
+def _parse_rpc(text: str) -> dict:
+    text = text.strip()
+    if text.startswith("{"):
+        return json.loads(text).get("result", {})
+    for line in reversed(text.split("\n")):
+        if line.startswith("data:"):
+            try:
+                obj = json.loads(line[5:].strip())
+                if "result" in obj:
+                    return obj["result"]
+            except json.JSONDecodeError:
+                continue
+    return {}
+
+
+def _extract_items(result: dict) -> list:
+    if not result:
+        return []
+    structured = (result.get("structuredContent") or {}).get("items")
+    if isinstance(structured, list):
+        return structured[:1]
+    items = []
+    for block in result.get("content") or []:
+        if block.get("type") == "text" and block.get("text"):
+            try:
+                parsed = json.loads(block["text"])
+                items.extend(parsed if isinstance(parsed, list) else [parsed])
+            except json.JSONDecodeError:
+                continue
+    return items[:1]
+
+
+def _map_product(p: dict, max_reviews: int) -> dict:
     price = p.get("price")
     if isinstance(price, dict):
         price = f"{price.get('currency', '$')}{price.get('value', '')}"
     return {
-        "name": p.get("title") or p.get("name") or p.get("productTitle") or "this product",
+        "name": p.get("title") or p.get("name") or "this product",
         "asin": p.get("asin") or p.get("ASIN"),
         "price": price,
-        "rating": _numeric(p.get("stars") or p.get("rating") or p.get("averageRating")),
+        "rating": _numeric(p.get("rating") or p.get("stars") or p.get("averageRating")),
         "reviewCount": _numeric(p.get("reviewsCount") or p.get("reviewCount") or p.get("ratingsTotal")),
         "availability": p.get("availability") or p.get("inStock"),
-        "url": p.get("url") or p.get("link") or p.get("productUrl"),
+        "pros": _arr(p.get("pros") or p.get("highlights")),
+        "cons": _arr(p.get("cons")),
+        "topReviews": _recent_reviews(p.get("reviews") or p.get("topReviews") or [], max_reviews),
+        "url": p.get("url") or p.get("link"),
     }
 
 
-def _extract_asin(url) -> str | None:
-    if not url:
-        return None
-    m = _ASIN_RE.search(str(url))
-    return m.group(1) if m else None
-
-
-def _recent_reviews(reviews: list, cutoff: datetime, limit: int) -> list:
-    """Keep only reviews dated within the last 6 months (belt-and-braces)."""
+def _recent_reviews(reviews: list, limit: int) -> list:
+    """Hard 6-month rule: keep only reviews dated within the last 6 months."""
+    cutoff = datetime.now(timezone.utc) - _SIX_MONTHS
     kept = []
     for r in reviews:
-        ts = _parse_date(r.get("date") or r.get("reviewDate") or r.get("reviewedAt") or r.get("createdAt"))
-        if ts is not None and ts < cutoff:
-            continue  # older than 6 months → drop
+        ts = _parse_date(r.get("date") or r.get("reviewDate") or r.get("createdAt"))
+        if ts is None or ts < cutoff:
+            continue
         kept.append({
-            "rating": _numeric(r.get("rating") or r.get("stars") or r.get("reviewStars")),
-            "date": r.get("date") or r.get("reviewDate") or r.get("reviewedAt") or r.get("createdAt"),
-            "title": r.get("title") or r.get("reviewTitle"),
-            "text": (r.get("text") or r.get("reviewText") or r.get("reviewDescription") or r.get("body") or "")[:300],
+            "rating": r.get("rating") or r.get("stars"),
+            "date": r.get("date") or r.get("reviewDate") or r.get("createdAt"),
+            "text": (r.get("text") or r.get("review") or r.get("body") or "")[:300],
         })
         if len(kept) >= limit:
             break
@@ -163,43 +196,33 @@ def _parse_date(value):
     if not value:
         return None
     text = str(value).strip().replace("Z", "+00:00")
-    # Try ISO first, then a few common Amazon formats.
     try:
         dt = datetime.fromisoformat(text)
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except ValueError:
-        pass
-    for fmt in ("%B %d, %Y", "%d %B %Y", "%Y/%m/%d", "%m/%d/%Y"):
-        try:
-            return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
-        except ValueError:
-            continue
-    return None
+        return None
+
+
+def _quote_plus(value: str) -> str:
+    from urllib.parse import quote_plus
+
+    return quote_plus(value)
 
 
 def _narrate(d: dict) -> str:
     parts = [f"I now have all the information about {d['name']}."]
-
     if d.get("rating"):
-        count = f" across about {d['reviewCount']} ratings" if d.get("reviewCount") else ""
-        price = f", and it costs around {d['price']}" if d.get("price") else ""
+        count = f" across about {d['reviewCount']} reviews" if d.get("reviewCount") else ""
+        price = f", and costs around {d['price']}" if d.get("price") else ""
         parts.append(f"It averages {d['rating']} stars{count}{price}.")
     elif d.get("price"):
         parts.append(f"It costs around {d['price']}.")
-
-    reviews = d.get("topReviews") or []
-    if reviews:
-        recent_scores = [r["rating"] for r in reviews if r.get("rating")]
-        if recent_scores:
-            avg = round(sum(recent_scores) / len(recent_scores), 1)
-            mood = "mostly positive" if avg >= 4 else "mixed" if avg >= 3 else "mostly negative"
-            parts.append(f"Reviews from the last six months are {mood}, averaging {avg} stars.")
-        snippet = next((r["text"] for r in reviews if r.get("text")), "")
-        if snippet:
-            parts.append(f"One recent reviewer said: {snippet}")
-    else:
-        parts.append("I couldn't find any reviews from the last six months.")
-
+    if d.get("pros"):
+        parts.append(f"People like its {' and '.join(d['pros'][:2])}.")
+    if d.get("cons"):
+        parts.append(f"The most common complaint is {d['cons'][0]}.")
+    if d.get("availability"):
+        parts.append(f"It's currently {d['availability']}.")
     parts.append("You can now ask questions about the product.")
     return " ".join(parts)
 
@@ -212,3 +235,7 @@ def _numeric(v):
         return float(digits) if digits else None
     except ValueError:
         return None
+
+
+def _arr(v) -> list:
+    return [str(x) for x in v if x] if isinstance(v, list) else []

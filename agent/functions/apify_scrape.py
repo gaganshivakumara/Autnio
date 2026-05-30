@@ -12,9 +12,14 @@ _TOKEN_CONFIGURED = bool(APIFY_TOKEN) and not APIFY_TOKEN.startswith("REPLACE")
 
 
 def handler(event, context):
+    method = event.get("requestContext", {}).get("http", {}).get("method") or event.get("httpMethod")
+    if method == "OPTIONS":
+        return agent_response(event, 200, {})
+
     # The web-data action group routes by apiPath; product/place discovery is
     # handled by its own module, everything else is a raw actor run.
-    if event.get("apiPath", "").rstrip("/") == "/product-discovery":
+    path = (event.get("apiPath") or event.get("rawPath") or "").rstrip("/")
+    if path == "/product-discovery" or (not event.get("actionGroup") and event.get("body")):
         return product_discovery.handler(event, context)
 
     body = parse_body(event)

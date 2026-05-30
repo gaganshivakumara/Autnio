@@ -1,14 +1,20 @@
 // Product/place discovery orchestrator for the camera path.
 //
-// Flow: a captured camera frame → Qwen3-VL identifies the item → direct
-// product-discovery lookup → the spoken narration is read back aloud.
+// Flow: a captured camera frame → Qwen3-VL identifies the item → product
+// discovery action → the spoken narration is read back aloud.
 //
 // Designed for blind / low-vision use: every stage emits audio, and the only
 // physical action required is pointing the camera (the trigger is a voice command).
 import { analyzeFrame, uploadFrame } from "./visionApi";
 import { speakText } from "../voice/VoiceOutput";
 
-const restApiUrl = import.meta.env.VITE_VOICE_API_URL as string;
+const chatEndpoint: string =
+  (import.meta.env.VITE_CHAT_API_URL as string | undefined) ??
+  (import.meta.env.VITE_CHAT_ENDPOINT as string | undefined) ??
+  `${import.meta.env.VITE_VOICE_API_URL as string}/chat`;
+const productDiscoveryEndpoint: string =
+  (import.meta.env.VITE_PRODUCT_DISCOVERY_API_URL as string | undefined) ??
+  "https://bn2nnrvlmij7ljffhlabqp4tne0nmlcc.lambda-url.us-east-1.on.aws/product-discovery";
 
 // Ask vision for a SHORT Amazon-searchable description, not an exact match.
 const IDENTIFY_PROMPT =
@@ -21,6 +27,21 @@ export type DiscoveryProgress = (stage: "capturing" | "identifying" | "scraping"
 export interface DiscoveryResult {
   identification: string;
   answer: string;
+  context?: ProductDiscoveryContext;
+}
+
+export interface ProductDiscoveryContext {
+  query?: string;
+  found?: boolean;
+  name?: string;
+  asin?: string;
+  price?: string | null;
+  rating?: number | null;
+  reviewCount?: number | null;
+  availability?: boolean | string | null;
+  topReviews?: Array<{ rating?: number | null; date?: string | null; title?: string | null; text?: string }>;
+  url?: string | null;
+  summary: string;
 }
 
 /** Short audible shutter so a non-sighted user knows the photo was taken. */
@@ -67,11 +88,11 @@ export async function discoverFromFrame(
     const identification = vision.result.trim().split(/\s+/).slice(0, 5).join(" ");
 
     onProgress?.("scraping", identification);
-    const answer = await discoverProduct(identification, idToken, sessionId);
+    const { answer, context } = await discoverProduct(identification, idToken, sessionId);
 
     onProgress?.("done", identification);
     await speakText(answer, idToken);
-    return { identification, answer };
+    return { identification, answer, context };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Discovery failed";
     onProgress?.("error", message);
@@ -80,9 +101,9 @@ export async function discoverFromFrame(
   }
 }
 
-/** Send the identified item straight to the product-discovery API. */
-async function discoverProduct(identification: string, idToken?: string, sessionId?: string): Promise<string> {
-  const res = await fetch(`${restApiUrl}/product-discovery`, {
+/** Send the identified item straight to the product-discovery action. */
+async function discoverProduct(identification: string, idToken?: string, sessionId?: string): Promise<{ answer: string; context: ProductDiscoveryContext }> {
+  const res = await fetch(productDiscoveryEndpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -94,8 +115,40 @@ async function discoverProduct(identification: string, idToken?: string, session
   if (!res.ok) throw new Error(`Discovery request failed: ${res.status}`);
   const text = await res.text();
   try {
-    const parsed = JSON.parse(text) as { result?: string; response?: string };
-    return parsed.result ?? parsed.response ?? text;
+    const parsed = JSON.parse(text) as { result?: string; response?: string; message?: string; data?: Omit<ProductDiscoveryContext, "summary"> };
+    const answer = parsed.result ?? parsed.response ?? parsed.message ?? text;
+    return {
+      answer,
+      context: {
+        ...(parsed.data ?? {}),
+        summary: answer,
+      },
+    };
+  } catch {
+    return { answer: text, context: { query: identification, summary: text } };
+  }
+}
+
+/** Fallback for follow-up use: send through the agent chat loop. */
+async function askAgentAboutItem(identification: string, idToken?: string, sessionId?: string): Promise<string> {
+  const message =
+    `I'm pointing my camera at a product identified as: "${identification}". ` +
+    `Use product discovery to search Amazon and tell me how it is.`;
+
+  const res = await fetch(chatEndpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+    },
+    body: JSON.stringify({ message, ...(sessionId ? { sessionId } : {}) }),
+  });
+
+  if (!res.ok) throw new Error(`Discovery request failed: ${res.status}`);
+  const text = await res.text();
+  try {
+    const parsed = JSON.parse(text) as { response?: string };
+    return parsed.response ?? text;
   } catch {
     return text;
   }

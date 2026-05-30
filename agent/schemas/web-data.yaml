@@ -2,12 +2,12 @@ openapi: "3.0.0"
 info:
   title: web-data
   version: "1.0"
-  description: Product discovery via Apify
+  description: Amazon product discovery via Apify
 paths:
   /product-discovery:
     post:
       summary: Discover an Amazon product — search Amazon, scrape the first result's price, rating and recent reviews
-      description: Search Amazon for a product query, inspect the first result, and return price, rating, availability, and recent reviews.
+      description: Search Amazon for a product, scrape the first result, and summarize price, rating, availability, and recent reviews.
       operationId: productDiscovery
       requestBody:
         required: true

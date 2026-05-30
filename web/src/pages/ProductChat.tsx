@@ -11,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import { recordAndTranscribe } from "../voice/VoiceInput";
 import { speakText } from "../voice/VoiceOutput";
 import { isCaptureCommand } from "../voice/commands";
+import type { ProductDiscoveryContext } from "../vision/productDiscovery";
 
 const chatEndpoint: string =
   (import.meta.env.VITE_CHAT_ENDPOINT as string | undefined) ??
@@ -26,6 +27,7 @@ export function ProductChat({
   userId,
   onCaptureCommand,
   placeholder,
+  productContext,
 }: {
   sessionId?: string;
   onSessionId?: (id: string) => void;
@@ -33,6 +35,7 @@ export function ProductChat({
   userId?: string;
   onCaptureCommand?: () => void;
   placeholder?: string;
+  productContext?: ProductDiscoveryContext;
 }): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -46,10 +49,17 @@ export function ProductChat({
     setState("thinking");
     let answer = "";
     try {
+      const message = productContext
+        ? [
+            "Answer the user's follow-up using this product discovery context. Do not scrape again unless the user explicitly asks for a new product or a fresh search.",
+            `Product context JSON: ${JSON.stringify(productContext)}`,
+            `User follow-up: ${text}`,
+          ].join("\n\n")
+        : text;
       const res = await fetch(chatEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
-        body: JSON.stringify({ message: text, sessionId: sessionId ?? `product-${Date.now()}`, ...(userId ? { userId } : {}) }),
+        body: JSON.stringify({ message, sessionId: sessionId ?? `product-${Date.now()}`, ...(userId ? { userId } : {}) }),
       });
       const body = await res.text();
       answer = body || `HTTP ${res.status}`;
@@ -65,7 +75,7 @@ export function ProductChat({
     setState("speaking");
     try { await speakText(answer, idToken); } catch { /* TTS non-fatal */ }
     setState("idle");
-  }, [idToken, userId, sessionId, onSessionId]);
+  }, [idToken, userId, sessionId, onSessionId, productContext]);
 
   const handleMic = useCallback(async () => {
     if (state !== "idle") return;

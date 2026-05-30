@@ -1,144 +1,103 @@
 // Bedrock action: POST /product-discovery
-// Two-step, demo-scoped Amazon lookup via Apify (REST run-sync):
-//   1. PRODUCT search — APIFY_PRODUCT_ACTOR (junglee/free-amazon-product-scraper),
-//      first result only.
-//   2. REVIEWS — APIFY_REVIEW_ACTOR (web_wanderer/amazon-reviews-extractor),
-//      restricted to the last 6 months.
-// Returns a compact summary + a ready-to-speak narration.
+// Lightweight, demo-oriented Amazon product lookup via the Apify MCP server.
+//
+// Flow: take a short (<= 5 word) search description, search Amazon, scrape ONLY
+// the first result, and return a compact summary + a ready-to-speak narration.
+//
+// COST GUARD (hard rule): never scrape data older than 6 months. Reviews dated
+// before the cutoff are dropped, and we only ever pull the single top result.
 import { bedrockResponse, errorResponse, parseBody } from '../shared/response.js';
+import { runActor } from '../shared/apify-mcp.js';
 
-const TOKEN = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
-const PRODUCT_ACTOR = process.env.APIFY_PRODUCT_ACTOR ?? 'XVDTQc4a7MDTqSTMJ';
-const REVIEW_ACTOR = process.env.APIFY_REVIEW_ACTOR ?? 'gFtgG31RZJYlphznm';
+const PRODUCT_ACTOR = process.env.APIFY_PRODUCT_ACTOR ?? 'junglee/amazon-crawler';
 const SIX_MONTHS_MS = 182 * 24 * 60 * 60 * 1000;
-const ASIN_RE = /\/(?:dp|gp\/product|product-reviews)\/([A-Z0-9]{10})/;
+const CUTOFF = () => Date.now() - SIX_MONTHS_MS;
 
 export const handler = async (event) => {
-  const method = event.requestContext?.http?.method ?? event.httpMethod;
-  if (method === 'OPTIONS') return bedrockResponse(event, 200, 'OK', {});
-
   try {
-    const { query } = parseBody(event);
+    const { query, maxReviews } = parseBody(event);
+
     if (!query) return errorResponse(event, 400, 'Missing required field: query');
-    if (!TOKEN) {
-      return bedrockResponse(event, 200, 'Apify integration not configured', { status: 'not_configured' });
-    }
 
+    // Keep the search cheap and predictable: trim to <= 5 words.
     const search = String(query).trim().split(/\s+/).slice(0, 5).join(' ');
+    const reviewLimit = Math.min(parseInt(maxReviews ?? '3', 10), 5);
 
-    // 1. Product search — first result only.
-    const products = await runSync(PRODUCT_ACTOR, {
-      categoryUrls: [{ url: `https://www.amazon.com/s?k=${encodeURIComponent(search)}` }],
-      maxItemsPerStartUrl: 1,
-      maxSearchPagesPerStartUrl: 1,
-    }, 1);
+    // Amazon search; scrape only the first result to keep cost down.
+    const items = await runActor(
+      PRODUCT_ACTOR,
+      { keywords: [search], maxItems: 1, maxReviews: reviewLimit },
+      { maxItems: 1 },
+    );
 
-    if (!products.length) {
-      return bedrockResponse(event, 200, `I couldn't find anything on Amazon for "${search}".`, { query: search, found: false });
+    if (!items.length) {
+      return bedrockResponse(event, 200, `I couldn't find anything on Amazon for "${search}".`, {
+        query: search,
+        found: false,
+      });
     }
 
-    const product = mapProduct(products[0]);
+    const data = mapProduct(items[0], reviewLimit);
+    const spoken = narrate(data);
 
-    // 2. Reviews — last 6 months only.
-    const now = Date.now();
-    const cutoff = now - SIX_MONTHS_MS;
-    const asin = product.asin ?? extractAsin(product.url);
-    if (asin) {
-      try {
-        const raw = await runSync(REVIEW_ACTOR, {
-          products: [asin],
-          limit: 10,
-          sort: 'recent',
-          start_date: isoDate(cutoff),
-          end_date: isoDate(now),
-        }, 10);
-        product.topReviews = recentReviews(raw, cutoff, 5);
-      } catch {
-        product.topReviews = [];
-      }
-    } else {
-      product.topReviews = [];
-    }
-
-    return bedrockResponse(event, 200, narrate(product), { query: search, found: true, asin, ...product });
+    return bedrockResponse(event, 200, spoken, { query: search, found: true, ...data });
   } catch (err) {
     return errorResponse(event, 500, err.message);
   }
 };
 
-async function runSync(actorId, input, limit) {
-  const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${TOKEN}&limit=${limit}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) throw new Error(`Apify actor ${actorId} failed: ${res.status} ${await res.text()}`);
-  return res.json();
-}
-
-function mapProduct(p) {
+function mapProduct(p, reviewLimit) {
   return {
-    name: p.title ?? p.name ?? p.productTitle ?? 'this product',
-    asin: p.asin ?? p.ASIN ?? null,
+    name: p.title ?? p.name ?? p.productName ?? 'this product',
     price: p.price?.value ? `${p.price.currency ?? '$'}${p.price.value}` : (p.price ?? null),
-    rating: numeric(p.stars ?? p.rating ?? p.averageRating),
+    rating: numeric(p.rating ?? p.stars ?? p.averageRating),
     reviewCount: numeric(p.reviewsCount ?? p.reviewCount ?? p.ratingsTotal),
     availability: p.availability ?? p.inStock ?? null,
-    url: p.url ?? p.link ?? p.productUrl ?? null,
+    pros: arr(p.pros ?? p.highlights),
+    cons: arr(p.cons),
+    topReviews: recentReviews(p.reviews ?? p.topReviews ?? [], reviewLimit),
+    url: p.url ?? p.link ?? null,
   };
 }
 
-function extractAsin(url) {
-  if (!url) return null;
-  const m = ASIN_RE.exec(String(url));
-  return m ? m[1] : null;
-}
-
-// Keep only reviews dated within the last 6 months (belt-and-braces over start_date).
-function recentReviews(reviews, cutoff, limit) {
-  const out = [];
-  for (const r of reviews) {
-    const ts = Date.parse(r.date ?? r.reviewDate ?? r.reviewedAt ?? r.createdAt ?? '');
-    if (!Number.isNaN(ts) && ts < cutoff) continue;
-    out.push({
-      rating: numeric(r.rating ?? r.stars ?? r.reviewStars),
-      date: r.date ?? r.reviewDate ?? r.reviewedAt ?? r.createdAt ?? null,
-      title: r.title ?? r.reviewTitle ?? null,
-      text: (r.text ?? r.reviewText ?? r.reviewDescription ?? r.body ?? '').slice(0, 300),
-    });
-    if (out.length >= limit) break;
-  }
-  return out;
-}
-
+// Spoken narration: confirmation → 3–4 sentence summary → invite.
 function narrate(d) {
   const parts = [`I now have all the information about ${d.name}.`];
+
   if (d.rating) {
-    parts.push(`It averages ${d.rating} stars${d.reviewCount ? ` across about ${d.reviewCount} ratings` : ''}${d.price ? `, and it costs around ${d.price}` : ''}.`);
+    parts.push(
+      `It averages ${d.rating} stars${d.reviewCount ? ` across about ${d.reviewCount} reviews` : ''}${d.price ? `, and costs around ${d.price}` : ''}.`,
+    );
   } else if (d.price) {
     parts.push(`It costs around ${d.price}.`);
   }
-  const reviews = d.topReviews ?? [];
-  if (reviews.length) {
-    const scores = reviews.map((r) => r.rating).filter(Boolean);
-    if (scores.length) {
-      const avg = Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
-      const mood = avg >= 4 ? 'mostly positive' : avg >= 3 ? 'mixed' : 'mostly negative';
-      parts.push(`Reviews from the last six months are ${mood}, averaging ${avg} stars.`);
-    }
-    const snippet = reviews.find((r) => r.text)?.text;
-    if (snippet) parts.push(`One recent reviewer said: ${snippet}`);
-  } else {
-    parts.push("I couldn't find any reviews from the last six months.");
-  }
+  if (d.pros.length) parts.push(`People like its ${d.pros.slice(0, 2).join(' and ')}.`);
+  if (d.cons.length) parts.push(`The most common complaint is ${d.cons[0]}.`);
+  if (d.availability) parts.push(`It's currently ${d.availability}.`);
+
   parts.push('You can now ask questions about the product.');
   return parts.join(' ');
 }
 
-const isoDate = (ms) => new Date(ms).toISOString().slice(0, 10);
+// Hard 6-month rule: drop reviews dated before the cutoff, then cap the count.
+function recentReviews(reviews, limit) {
+  const cutoff = CUTOFF();
+  return reviews
+    .filter((r) => {
+      const ts = Date.parse(r.date ?? r.reviewDate ?? r.createdAt ?? '');
+      return Number.isNaN(ts) ? false : ts >= cutoff;
+    })
+    .slice(0, limit)
+    .map((r) => ({
+      rating: r.rating ?? r.stars ?? null,
+      date: r.date ?? r.reviewDate ?? r.createdAt ?? null,
+      text: (r.text ?? r.review ?? r.body ?? '').slice(0, 300),
+    }));
+}
+
 const numeric = (v) => {
   if (v == null) return null;
   const n = parseFloat(String(v).replace(/[^0-9.]/g, ''));
   return Number.isFinite(n) ? n : null;
 };
+const arr = (v) => (Array.isArray(v) ? v.filter(Boolean).map(String) : []);
