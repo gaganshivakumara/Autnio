@@ -14,7 +14,7 @@ export function startRelay(options: {
   wsEndpoint: string;
   onEvent: (event: RelayEvent) => void;
 }): OIRelay {
-  const relay = new OIRelay({ ...options, idToken: "" });
+  const relay = new OIRelay({ ...options, idToken: "demo-token" });
   relay.connect();
   return relay;
 }

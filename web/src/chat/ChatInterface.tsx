@@ -8,6 +8,7 @@ import { startVoiceSession, type VoiceSession } from "../voice/VoiceInput";
 import { isCaptureCommand } from "../voice/commands";
 
 const chatEndpoint: string =
+  (import.meta.env.VITE_CHAT_API_URL as string | undefined) ??
   (import.meta.env.VITE_CHAT_ENDPOINT as string | undefined) ??
   `${import.meta.env.VITE_VOICE_API_URL as string}/chat`;
 

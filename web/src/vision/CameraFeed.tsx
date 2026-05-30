@@ -1,18 +1,24 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type CameraFeedProps = {
+  onFrame: (blob: Blob) => Promise<void> | void;
+  registerCapture?: (capture: () => void) => void;
+  captureLabel?: string;
+  realtimeIntervalMs?: number;
+};
+
+const frameSize = 320;
 
 export function CameraFeed({
   onFrame,
   registerCapture,
-  captureLabel = "Analyze Scene",
-}: {
-  onFrame: (blob: Blob) => void;
-  // Hands the parent an imperative capture() so a voice command can trigger the
-  // shutter without an on-screen tap (accessibility / hands-free discovery).
-  registerCapture?: (capture: () => void) => void;
-  captureLabel?: string;
-}): JSX.Element {
+  captureLabel = "Check Surroundings",
+  realtimeIntervalMs = 3500,
+}: CameraFeedProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const inFlightRef = useRef(false);
   const [error, setError] = useState<string>("");
+  const [realTimeEnabled, setRealTimeEnabled] = useState(false);
 
   useEffect(() => {
     let stream: MediaStream | undefined;
@@ -32,14 +38,35 @@ export function CameraFeed({
     };
   }, []);
 
-  const captureFrame = (): void => {
-    if (!videoRef.current) return;
+  const captureFrame = useCallback(async (): Promise<void> => {
+    if (!videoRef.current || inFlightRef.current || videoRef.current.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      return;
+    }
+
+    inFlightRef.current = true;
     const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 512;
-    canvas.getContext("2d")!.drawImage(videoRef.current, 0, 0, 512, 512);
-    canvas.toBlob((blob) => blob && onFrame(blob), "image/jpeg", 0.85);
-  };
+    canvas.width = frameSize;
+    canvas.height = frameSize;
+    canvas.getContext("2d")!.drawImage(videoRef.current, 0, 0, frameSize, frameSize);
+
+    try {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.72));
+      if (blob) await onFrame(blob);
+    } finally {
+      inFlightRef.current = false;
+    }
+  }, [onFrame]);
+
+  useEffect(() => {
+    if (!realTimeEnabled) return undefined;
+
+    void captureFrame();
+    const intervalId = window.setInterval(() => {
+      void captureFrame();
+    }, realtimeIntervalMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [captureFrame, realTimeEnabled, realtimeIntervalMs]);
 
   useEffect(() => {
     registerCapture?.(captureFrame);
@@ -49,9 +76,14 @@ export function CameraFeed({
     <div className="cameraFeed">
       <video ref={videoRef} autoPlay playsInline muted />
       {error ? <p className="error">{error}</p> : null}
-      <button type="button" onClick={captureFrame}>
-        {captureLabel}
-      </button>
+      <div className="buttonRow">
+        <button type="button" onClick={() => void captureFrame()}>
+          {captureLabel}
+        </button>
+        <button type="button" onClick={() => setRealTimeEnabled((enabled) => !enabled)}>
+          {realTimeEnabled ? "Stop Obstacle Guidance" : "Start Obstacle Guidance"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Hero } from "./Hero";
 import { Capabilities, Statement, Footer } from "./Sections";
 import { ChatInterface, type ChatHandle } from "../chat/ChatInterface";

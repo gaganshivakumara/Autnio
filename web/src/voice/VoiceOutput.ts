@@ -1,5 +1,42 @@
 const voiceApiUrl = import.meta.env.VITE_VOICE_API_URL as string;
 
+let activeAudio: HTMLAudioElement | null = null;
+
+function stopCurrentSpeech(): void {
+  activeAudio?.pause();
+  activeAudio = null;
+  window.speechSynthesis?.cancel();
+}
+
+function playAudio(audioUrl: string): Promise<void> {
+  stopCurrentSpeech();
+  const audio = new Audio(audioUrl);
+  activeAudio = audio;
+
+  return new Promise((resolve, reject) => {
+    audio.onended = () => {
+      if (activeAudio === audio) activeAudio = null;
+      resolve();
+    };
+    audio.onerror = () => {
+      if (activeAudio === audio) activeAudio = null;
+      reject(new Error("Audio playback failed"));
+    };
+    void audio.play().catch(reject);
+  });
+}
+
+function speakWithBrowser(text: string): Promise<void> {
+  stopCurrentSpeech();
+  return new Promise((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.12;
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis?.speak(utterance);
+  });
+}
+
 export async function speakText(text: string, idToken?: string): Promise<void> {
   const response = await fetch(`${voiceApiUrl}/voice/tts`, {
     method: "POST",
@@ -19,8 +56,19 @@ export async function speakText(text: string, idToken?: string): Promise<void> {
   const audioUrl = URL.createObjectURL(audioBlob);
 
   try {
-    await new Audio(audioUrl).play();
+    await playAudio(audioUrl);
   } finally {
     URL.revokeObjectURL(audioUrl);
+  }
+}
+
+export async function speakGuidance(text: string, idToken?: string): Promise<void> {
+  const shortText = text.trim();
+  if (!shortText) return;
+
+  try {
+    await speakText(shortText, idToken);
+  } catch {
+    await speakWithBrowser(shortText);
   }
 }

@@ -1,11 +1,12 @@
 // Halo — App dashboard. All existing backend integrations, restyled.
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatInterface } from "../chat/ChatInterface";
 import { FileBrowser } from "../files/FileBrowser";
 import { CameraFeed } from "../vision/CameraFeed";
+import { blindNavigationPrompt, conciseVisionText } from "../vision/accessibility";
 import { analyzeFrame, uploadFrame, type VisionMode } from "../vision/visionApi";
 import { discoverFromFrame } from "../vision/productDiscovery";
-import { speakText } from "../voice/VoiceOutput";
+import { speakGuidance } from "../voice/VoiceOutput";
 import { recordAndTranscribe } from "../voice/VoiceInput";
 import { isCaptureCommand } from "../voice/commands";
 import { Button, RingMark } from "../landing/Primitives";
@@ -19,8 +20,8 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
   const [savedCode, setSavedCode]   = useState(storedCode);
 
   // Vision / product discovery
-  const [visionMode,   setVisionMode]   = useState<VisionMode>("detect");
-  const [visionPrompt, setVisionPrompt] = useState("Describe the scene and identify important objects.");
+  const [visionMode, setVisionMode] = useState<VisionMode>("stream");
+  const [visionPrompt, setVisionPrompt] = useState(blindNavigationPrompt);
   const [visionResult, setVisionResult] = useState("");
   const [visionBusy,   setVisionBusy]   = useState(false);
   const [discoveryStatus, setDiscoveryStatus] = useState("");
@@ -46,14 +47,15 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
     setVisionBusy(true);
     setVisionResult("");
     try {
-      const upload = await uploadFrame(blob, savedCode || "anonymous");
+      const upload = await uploadFrame(blob, savedCode || "demo-user");
       const result = await analyzeFrame({
         imageS3Key: upload.imageS3Key,
         mode: visionMode,
         prompt: visionPrompt,
       });
-      setVisionResult(result.result);
-      await speakText(result.result);
+      const conciseResult = conciseVisionText(result.result);
+      setVisionResult(conciseResult);
+      await speakGuidance(conciseResult);
     } catch (error) {
       setVisionResult(error instanceof Error ? error.message : "Vision request failed");
     } finally {
@@ -158,7 +160,7 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
 
         {/* Vision */}
         <section className="dash-card" id="vision-section">
-          <h2 className="dash-card-title">Vision Feed</h2>
+          <h2 className="dash-card-title">Obstacle Guidance</h2>
           <div className="dash-grid">
             <select
               value={visionMode}
@@ -175,7 +177,9 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
             />
           </div>
           <CameraFeed onFrame={handleFrame} />
-          <pre className="dash-pre">{visionBusy ? "Analyzing..." : visionResult || "Capture a frame to analyze."}</pre>
+          <pre className="dash-pre">
+            {visionBusy ? "Checking distance and obstacles..." : visionResult || "Start obstacle guidance for short spoken surroundings."}
+          </pre>
         </section>
 
         {/* Product Discovery */}

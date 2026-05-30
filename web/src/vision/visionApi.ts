@@ -1,6 +1,7 @@
-const apiUrl = import.meta.env.VITE_VOICE_API_URL as string;
-const uploadEndpoint = `${apiUrl}/upload`;
-const restApiUrl = apiUrl;
+const restApiUrl = import.meta.env.VITE_REST_API_URL as string;
+const visionApiUrl = (import.meta.env.VITE_VISION_API_URL as string | undefined) || restApiUrl;
+const uploadEndpoint =
+  (import.meta.env.VITE_S3_UPLOAD_LAMBDA_URL as string | undefined) || `${visionApiUrl}/upload`;
 
 export type VisionMode = "detect" | "stream";
 
@@ -40,7 +41,7 @@ export async function analyzeFrame(input: {
   mode: VisionMode;
   prompt?: string;
 }): Promise<VisionResult> {
-  const response = await fetch(`${restApiUrl}/vision/image`, {
+  const response = await fetch(`${visionApiUrl}/vision`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

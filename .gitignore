@@ -17,6 +17,9 @@ functions/**/node_modules/
 mobile/node_modules/
 mobile/.expo/
 mobile/.expo-shared/
+ios-lidar/.model-cache/
+ios-lidar/AutnioSpatialGuide/Models/*.pt
+ios-lidar/AutnioSpatialGuide/Models/*.mlpackage
 
 # OS
 .DS_Store
