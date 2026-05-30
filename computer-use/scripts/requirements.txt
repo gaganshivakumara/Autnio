@@ -17,3 +17,9 @@ pyperclip>=1.8
 # Agent HTTP server (agent-server.py — browser relay path)
 fastapi>=0.111
 uvicorn[standard]>=0.29
+
+# Voice I/O — local mic capture + TTS playback
+amazon-transcribe>=0.6.4
+sounddevice>=0.4.6
+numpy>=1.24
+pygame>=2.5
