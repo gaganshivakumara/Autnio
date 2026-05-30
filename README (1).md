@@ -21,8 +21,18 @@ This guide divides the full Autnio build across a team of four. Each developer o
 ## How the Pieces Connect
 
 ```
-Web App / Phone Camera (User's device)
+Web App / Phone Camera / Mic (User's device)
                 │
+         ┌──────┴──────┐
+         ▼             ▼
+  Voice input       Text / camera
+  (MediaRecorder)   input
+         │             │
+         ▼             │
+  Transcribe Lambda    │   Dev 5 (voice)
+  (Amazon Transcribe)  │
+         │             │
+         └──────┬──────┘
                 ▼
         API Gateway  ◄──────────── Dev 3 (infra + auth)
                 │
@@ -45,6 +55,15 @@ Open Interpreter (user's local machine)
             │
             ▼
        DynamoDB  ◄──── state, preferences, history
+            │
+            ▼
+   Agent response text
+            │
+            ▼
+   TTS Lambda (Amazon Polly)  ◄── Dev 5 (voice)
+            │
+            ▼
+   Audio played back to user
 ```
 
 ---
@@ -57,12 +76,13 @@ autnio/
 ├── agent/            # Dev 1 — Bedrock schemas and prompt config
 │   ├── schemas/      # OpenAPI action group definitions
 │   └── prompts/      # Agent system prompt
-├── functions/        # Dev 2 — Lambda handlers
-│   ├── automation/   # OI dispatch
-│   ├── files/        # Box integration
-│   ├── data/         # Apify integration
-│   ├── user/         # DynamoDB profile/history
-│   └── vision/       # Dev 4 — vision Lambda handlers
+├── functions/        # Lambda handlers
+│   ├── automation/   # Dev 2 — OI dispatch
+│   ├── files/        # Dev 2 — Box integration
+│   ├── data/         # Dev 2 — Apify integration
+│   ├── user/         # Dev 2 — DynamoDB profile/history
+│   ├── vision/       # Dev 4 — Qwen/Nemotron vision handlers
+│   └── voice/        # Dev 5 — Transcribe + Polly handlers
 ├── interpreter/      # Dev 2 — Open Interpreter config
 ├── infra/            # Dev 3 — CDK stacks
 ├── web/              # Dev 4 — React web app
@@ -84,6 +104,7 @@ BOX_CONFIG_JSON
 QWEN_VL_MODEL_ID          # qwen.qwen3-vl-235b-a22b
 NEMOTRON_VL_MODEL_ID      # nvidia.nemotron-nano-12b-v2
 OI_BEDROCK_MODEL_ID       # Bedrock model ID used by Open Interpreter
+POLLY_VOICE_ID            # e.g. Joanna (neural TTS voice)
 ```
 
 ### Response Format (all Lambda functions)
@@ -112,19 +133,21 @@ Start here to avoid blockers:
 
 1. **Dev 3 first** — provision infra, Cognito, DynamoDB, API Gateway (REST + WebSocket), and CI/CD pipeline. Everyone else depends on this.
 2. **Dev 2 in parallel** — build Lambda functions and DynamoDB schema. Can be tested locally with mock events. Also sets up Open Interpreter config and WebSocket dispatch logic.
-3. **Dev 1 after Dev 2** — needs Lambda ARNs to register action groups.
-4. **Dev 4 in parallel with Dev 1** — vision Lambdas and web app can be built independently once Dev 3 delivers Cognito config and API Gateway URLs.
+3. **Dev 5 in parallel with Dev 2** — Transcribe and Polly Lambdas can be built and tested locally independently. Coordinate with Dev 3 for IAM roles and API routes, and with Dev 4 on the audio interface spec.
+4. **Dev 1 after Dev 2** — needs Lambda ARNs to register action groups.
+5. **Dev 4 in parallel with Dev 1** — vision Lambdas and web app can be built independently once Dev 3 delivers Cognito config and API Gateway URLs. Wire Dev 5's audio endpoints after Dev 5 delivers them.
 
 ---
 
 ## Handoff Matrix
 
-| Provides → | Dev 1 | Dev 2 | Dev 3 | Dev 4 |
-|---|---|---|---|---|
-| **Dev 1** | — | — | Agent ID + Alias ID | `vision` action group schema |
-| **Dev 2** | Lambda ARNs, OI WebSocket message format | — | DynamoDB table name, IAM needs | `get-profile`, `box-read` Lambda ARNs |
-| **Dev 3** | Cognito Pool IDs, JWT setup | IAM roles, Secrets paths, WebSocket API URL | — | API Gateway URLs, Cognito config |
-| **Dev 4** | Vision Lambda ARNs | OI WebSocket relay client (browser-side) | Web app build (for S3/CloudFront deploy) | — |
+| Provides → | Dev 1 | Dev 2 | Dev 3 | Dev 4 | Dev 5 |
+|---|---|---|---|---|---|
+| **Dev 1** | — | — | Agent ID + Alias ID | `vision` action group schema | — |
+| **Dev 2** | Lambda ARNs, OI WebSocket message format | — | DynamoDB table name, IAM needs | `get-profile`, `box-read` Lambda ARNs | — |
+| **Dev 3** | Cognito Pool IDs, JWT setup | IAM roles, Secrets paths, WebSocket API URL | — | API Gateway URLs, Cognito config | VoiceLambdaRole, `/voice/*` API routes |
+| **Dev 4** | Vision Lambda ARNs | OI WebSocket relay client (browser-side) | Web app build (for S3/CloudFront deploy) | — | Audio interface integration (mic capture + playback) |
+| **Dev 5** | — | — | Transcribe + Polly Lambda code + IAM requirements | `/voice/transcribe` + `/voice/tts` endpoint URLs + audio interface spec | — |
 
 ---
 
@@ -132,6 +155,7 @@ Start here to avoid blockers:
 
 - AWS account with Bedrock, Lambda, DynamoDB, Cognito, and API Gateway enabled
 - Bedrock model access for `qwen.qwen3-vl-235b-a22b` and `nvidia.nemotron-nano-12b-v2`
+- Amazon Transcribe and Amazon Polly enabled in your AWS region
 - Apify account + API token
 - Box developer account + OAuth 2.0 app credentials
 - GitHub repo with Actions enabled
