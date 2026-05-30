@@ -1,0 +1,146 @@
+openapi: "3.0.0"
+info:
+  title: file-management
+  version: "1.0"
+  description: Manage files and documents via Box
+paths:
+  /box-upload:
+    post:
+      summary: Upload a file to Box
+      operationId: boxUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileName, content]
+              properties:
+                fileName:
+                  type: string
+                  description: Name for the file in Box
+                content:
+                  type: string
+                  description: File content as UTF-8 text
+                folderId:
+                  type: string
+                  description: Box folder ID (default "0" = root)
+      responses:
+        "200":
+          description: File uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /box-read:
+    post:
+      summary: Read the content of a file stored in Box
+      operationId: boxRead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileId]
+              properties:
+                fileId:
+                  type: string
+                  description: Box file ID
+      responses:
+        "200":
+          description: File content returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /box-share:
+    post:
+      summary: Share a Box file via shared link or collaborator invite
+      operationId: boxShare
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileId]
+              properties:
+                fileId:
+                  type: string
+                  description: Box file ID to share
+                access:
+                  type: string
+                  description: Shared link access level (used when no collaboratorEmail is given)
+                  enum: [open, company, collaborators]
+                  default: company
+                collaboratorEmail:
+                  type: string
+                  description: Invite a specific person as a collaborator instead of creating a link
+                role:
+                  type: string
+                  description: Collaborator role (viewer, editor, co-owner)
+                  enum: [viewer, editor, co-owner]
+                  default: viewer
+      responses:
+        "200":
+          description: File shared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /box-search:
+    post:
+      summary: Search Box files by name or keyword
+      operationId: boxSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  description: Search query
+                fileExtension:
+                  type: string
+                  description: Filter by extension (e.g. "pdf", "docx")
+                limit:
+                  type: string
+                  description: Max results to return (default 10)
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        data:
+          type: object
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

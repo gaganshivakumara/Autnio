@@ -1,0 +1,142 @@
+openapi: "3.0.0"
+info:
+  title: user-memory
+  version: "1.0"
+  description: Read and write user preferences, routines, and task history in DynamoDB
+paths:
+  /get-profile:
+    post:
+      summary: Get the current user's profile and preferences
+      operationId: getProfile
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: User ID (optional — defaults to the authenticated session user)
+      responses:
+        "200":
+          description: User profile returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /update-profile:
+    post:
+      summary: Update the current user's preferences or session state
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preferences:
+                  type: string
+                  description: JSON object of preference keys to update (e.g. timezone, defaultBrowser)
+                sessionState:
+                  type: string
+                  description: JSON object of session state to persist
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /save-routine:
+    post:
+      summary: Save a named automation routine for the user
+      operationId: saveRoutine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [routineName, steps]
+              properties:
+                routineName:
+                  type: string
+                  description: "Routine name (e.g. \"morning setup\", \"job hunt mode\")"
+                steps:
+                  type: string
+                  description: JSON array of step objects describing the workflow
+                trigger:
+                  type: string
+                  description: Optional natural language trigger description
+      responses:
+        "200":
+          description: Routine saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /log-task:
+    post:
+      summary: Log a completed task to the user's history
+      operationId: logTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  description: Description of the action taken
+                result:
+                  type: string
+                  description: Outcome or result of the action
+                servicesUsed:
+                  type: string
+                  description: "Comma-separated services used (e.g. \"SES,Box,Apify\")"
+      responses:
+        "200":
+          description: Task logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        data:
+          type: object
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

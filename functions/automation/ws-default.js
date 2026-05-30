@@ -8,6 +8,6 @@
 // Env vars: DYNAMODB_TABLE, WEBSOCKET_API_ENDPOINT (injected by CDK in bin/autnio.ts)
 // IAM: execute-api:ManageConnections granted by FunctionsStack
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   return { statusCode: 200 };
 };

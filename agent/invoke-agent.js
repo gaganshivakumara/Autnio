@@ -1,6 +1,8 @@
-// REST handler: POST /chat
-// Validates Cognito JWT, injects user profile into session state,
-// invokes Bedrock Agent, and persists a session log to DynamoDB.
+/**
+ * Lambda handler — API Gateway entry point for all agent interactions.
+ * Validates Cognito JWT, injects user profile into session state,
+ * invokes Bedrock Agent, and persists session log to DynamoDB.
+ */
 import { BedrockAgentRuntimeClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
@@ -13,7 +15,7 @@ const TABLE = process.env.DYNAMODB_TABLE ?? 'autnio-main';
 const verifier = CognitoJwtVerifier.create({
   userPoolId: process.env.COGNITO_USER_POOL_ID,
   tokenUse: 'access',
-  clientId: process.env.COGNITO_CLIENT_ID ?? null,
+  clientId: process.env.COGNITO_CLIENT_ID,
 });
 
 export const handler = async (event) => {
@@ -23,13 +25,15 @@ export const handler = async (event) => {
 
     const authHeader = event.headers?.Authorization ?? event.headers?.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
-      return respond(401, { message: 'Missing or invalid Authorization header' });
+      return unauthorized('Missing or invalid Authorization header');
     }
 
     const claims = await verifier.verify(authHeader.slice(7));
     const userId = claims.sub;
 
-    if (!prompt) return respond(400, { message: 'Missing required field: prompt' });
+    if (!prompt) {
+      return respond(400, { message: 'Missing required field: prompt' });
+    }
 
     const profileResult = await ddb.send(
       new GetCommand({ TableName: TABLE, Key: { PK: `USER#${userId}`, SK: 'PROFILE' } }),
@@ -58,27 +62,33 @@ export const handler = async (event) => {
     });
 
     const agentResponse = await bedrock.send(agentCommand);
+
     const chunks = [];
     for await (const chunk of agentResponse.completion) {
-      if (chunk.chunk?.bytes) chunks.push(Buffer.from(chunk.chunk.bytes).toString('utf8'));
+      if (chunk.chunk?.bytes) {
+        chunks.push(Buffer.from(chunk.chunk.bytes).toString('utf8'));
+      }
     }
     const responseText = chunks.join('');
 
-    await ddb.send(new PutCommand({
-      TableName: TABLE,
-      Item: {
-        PK: `USER#${userId}`,
-        SK: `SESSION#${new Date().toISOString()}`,
-        agentSessionId,
-        summary: prompt.slice(0, 200),
-        ttl: Math.floor(Date.now() / 1000) + 86_400,
-      },
-    }));
+    // Log session entry with 24-hour TTL
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE,
+        Item: {
+          PK: `USER#${userId}`,
+          SK: `SESSION#${new Date().toISOString()}`,
+          agentSessionId,
+          summary: prompt.slice(0, 200),
+          ttl: Math.floor(Date.now() / 1000) + 86_400,
+        },
+      }),
+    );
 
     return respond(200, { response: responseText, sessionId: agentSessionId });
   } catch (err) {
     if (err.name === 'JwtExpiredError' || err.name === 'JwtInvalidClaimError') {
-      return respond(401, { message: 'Invalid or expired token' });
+      return unauthorized('Invalid or expired token');
     }
     console.error(err);
     return respond(500, { message: err.message });
@@ -86,5 +96,13 @@ export const handler = async (event) => {
 };
 
 function respond(statusCode, body) {
-  return { statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  };
+}
+
+function unauthorized(message) {
+  return respond(401, { message });
 }

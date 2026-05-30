@@ -1,0 +1,25 @@
+{
+  "name": "autnio",
+  "version": "1.0.0",
+  "description": "Autnio — AI companion for the digital and physical world",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test functions/**/*.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.600.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.600.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-ses": "^3.600.0",
+    "@aws-sdk/client-ssm": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "apify-client": "^2.9.3",
+    "aws-jwt-verify": "^4.0.1",
+    "box-node-sdk": "^3.4.0"
+  },
+  "devDependencies": {
+    "@sparticuz/chromium": "^123.0.0",
+    "playwright-core": "^1.44.0"
+  }
+}
