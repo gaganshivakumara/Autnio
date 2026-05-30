@@ -1,0 +1,81 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "User Preferences", "version": "1.0.0" },
+  "paths": {
+    "/profile/get": {
+      "post": {
+        "summary": "Get user profile",
+        "description": "Read user preferences and named routines from DynamoDB",
+        "operationId": "getUserProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": {
+                  "userId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Profile returned" }
+        }
+      }
+    },
+    "/profile/update": {
+      "post": {
+        "summary": "Update user profile",
+        "description": "Write updated preferences or routines to DynamoDB",
+        "operationId": "updateUserProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "preferences"],
+                "properties": {
+                  "userId": { "type": "string" },
+                  "preferences": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Profile updated" }
+        }
+      }
+    },
+    "/task/log": {
+      "post": {
+        "summary": "Log completed task",
+        "description": "Append a completed task entry to task history",
+        "operationId": "logTask",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "task"],
+                "properties": {
+                  "userId": { "type": "string" },
+                  "task": { "type": "string" },
+                  "result": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Task logged" }
+        }
+      }
+    }
+  }
+}
