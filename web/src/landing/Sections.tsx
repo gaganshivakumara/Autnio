@@ -85,6 +85,8 @@ export function Statement() {
     <section
       style={{
         padding: "clamp(6rem, 16vh, 11rem) clamp(1.5rem, 6vw, 6rem)",
+        maxWidth: 1280,
+        margin: "0 auto",
         textAlign: "center",
       }}
     >
@@ -92,8 +94,6 @@ export function Statement() {
       <div
         style={{
           position: "relative",
-          maxWidth: 1280,
-          margin: "0 auto",
           borderRadius: 28,
           overflow: "hidden",
           padding: "clamp(3.5rem, 8vw, 6rem) clamp(2rem, 6vw, 5rem)",
