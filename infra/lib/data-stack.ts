@@ -66,6 +66,28 @@ export class DataStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
+    // Bedrock model IDs — Lambdas also get these via env vars, but store here for auditability
+    new secretsmanager.Secret(this, 'QwenModelId', {
+      secretName: `/autnio/${appEnv}/bedrock-qwen-model-id`,
+      description: 'Qwen3-VL-235B model ID on Bedrock (vision detection)',
+      secretStringValue: cdk.SecretValue.unsafePlainText('qwen.qwen3-vl-235b-a22b'),
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    new secretsmanager.Secret(this, 'NemotronModelId', {
+      secretName: `/autnio/${appEnv}/bedrock-nemotron-model-id`,
+      description: 'Nemotron Nano 2 VL model ID on Bedrock (realtime vision stream)',
+      secretStringValue: cdk.SecretValue.unsafePlainText('nvidia.nemotron-nano-12b-v2'),
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
+    new secretsmanager.Secret(this, 'OiModelId', {
+      secretName: `/autnio/${appEnv}/bedrock-oi-model-id`,
+      description: 'Claude 3.5 Sonnet model ID for Open Interpreter LLM backend',
+      secretStringValue: cdk.SecretValue.unsafePlainText('anthropic.claude-3-5-sonnet-20241022-v2:0'),
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    });
+
     new cdk.CfnOutput(this, 'TableName', {
       value: this.table.tableName,
       exportName: `autnio-${appEnv}-table-name`,
