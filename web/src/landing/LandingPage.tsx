@@ -66,6 +66,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
           padding: "clamp(5rem, 12vh, 9rem) clamp(1.5rem, 6vw, 6rem)",
           maxWidth: 1280,
           margin: "0 auto",
+          textAlign: "center",
         }}
       >
         <div
@@ -89,7 +90,6 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
             lineHeight: 1.04,
             letterSpacing: "-0.015em",
             color: "var(--ink-1)",
-            maxWidth: "22ch",
             marginBottom: "3.5rem",
             marginTop: 0,
           }}
@@ -97,10 +97,10 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
           Everything in one place.
         </h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", alignItems: "center" }}>
           <ChatInterface />
 
-          <section className="dash-card">
+          <section className="dash-card" style={{ width: "100%" }}>
             <h2 className="dash-card-title">Vision Feed</h2>
             <div className="dash-grid">
               <select
@@ -123,7 +123,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
             </pre>
           </section>
 
-          <section className="dash-card">
+          <section className="dash-card" style={{ width: "100%" }}>
             <h2 className="dash-card-title">Open Interpreter Relay</h2>
             <div className="dash-relay-status">
               <span
@@ -151,7 +151,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
             </pre>
           </section>
 
-          <FileBrowser />
+          <div style={{ width: "100%" }}><FileBrowser /></div>
         </div>
       </section>
 
