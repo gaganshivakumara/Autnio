@@ -18,8 +18,4 @@ pyperclip>=1.8
 fastapi>=0.111
 uvicorn[standard]>=0.29
 
-# Voice I/O — local mic capture + TTS playback
-amazon-transcribe>=0.6.4
-sounddevice>=0.4.6
-numpy>=1.24
-pygame>=2.5
+# (Voice I/O is handled server-side via AWS Transcribe/Polly — no local deps needed)
