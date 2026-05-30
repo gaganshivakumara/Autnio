@@ -1,7 +1,6 @@
 import { Logo } from "./Primitives";
 
 const NAV_LINKS = [
-  { label: "Vision Feed", hash: "#/vision" },
   { label: "Product Discovery", hash: "#/product-discovery" },
   { label: "Relay", hash: "#/relay" },
 ];
