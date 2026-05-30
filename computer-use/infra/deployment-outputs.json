@@ -1,0 +1,12 @@
+{
+  "WEBSOCKET_API_ENDPOINT": "wss://3cil79jtm9.execute-api.us-east-1.amazonaws.com/dev",
+  "VITE_WS_API_URL": "wss://3cil79jtm9.execute-api.us-east-1.amazonaws.com/dev",
+  "CONNECTIONS_TABLE_NAME": "autnio-computer-use-dev-connections",
+  "TASKS_TABLE_NAME": "autnio-computer-use-dev-tasks",
+  "WS_API_ID": "3cil79jtm9",
+  "WS_CONNECT_FUNCTION": "autnio-computer-use-dev-ws-connect",
+  "WS_DISCONNECT_FUNCTION": "autnio-computer-use-dev-ws-disconnect",
+  "WS_RESULT_FUNCTION": "autnio-computer-use-dev-ws-result",
+  "LAMBDA_ROLE_NAME": "autnio-computer-use-dev-lambda-role",
+  "AWS_REGION": "us-east-1"
+}
