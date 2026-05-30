@@ -3,15 +3,38 @@ import { useState } from "react";
 import { Hero } from "./Hero";
 import { Capabilities, Statement, Footer } from "./Sections";
 import { ChatInterface } from "../chat/ChatInterface";
+import { CameraFeed } from "../vision/CameraFeed";
+import { analyzeFrame, uploadFrame, type VisionMode } from "../vision/visionApi";
+import { speakText } from "../voice/VoiceOutput";
 
 function getStoredCode(): string {
   try { return localStorage.getItem("autnio_access_code") ?? ""; } catch { return ""; }
 }
 
 export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
-  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [sessionId, setSessionId]   = useState<string | undefined>(undefined);
   const [accessCode, setAccessCode] = useState(getStoredCode);
   const [savedCode, setSavedCode]   = useState(getStoredCode);
+
+  const [visionMode,   setVisionMode]   = useState<VisionMode>("detect");
+  const [visionPrompt, setVisionPrompt] = useState("Describe the scene and identify important objects.");
+  const [visionResult, setVisionResult] = useState("");
+  const [visionBusy,   setVisionBusy]   = useState(false);
+
+  const handleFrame = async (blob: Blob): Promise<void> => {
+    setVisionBusy(true);
+    setVisionResult("");
+    try {
+      const upload = await uploadFrame(blob, savedCode || "anonymous");
+      const result = await analyzeFrame({ imageS3Key: upload.imageS3Key, mode: visionMode, prompt: visionPrompt });
+      setVisionResult(result.result);
+      await speakText(result.result);
+    } catch (error) {
+      setVisionResult(error instanceof Error ? error.message : "Vision request failed");
+    } finally {
+      setVisionBusy(false);
+    }
+  };
 
   const paired = !!savedCode;
 
@@ -125,6 +148,49 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
               </>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* Vision Feed */}
+      <section
+        id="vision"
+        style={{
+          padding: "clamp(5rem, 12vh, 9rem) clamp(1.5rem, 6vw, 6rem)",
+          maxWidth: 1280,
+          margin: "0 auto",
+          textAlign: "center",
+          scrollMarginTop: 0,
+        }}
+      >
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.32em", color: "var(--ink-3)", marginBottom: "1.4rem" }}>
+          Vision Feed
+        </div>
+        <h2 style={{ fontFamily: "var(--font-sans)", fontWeight: 300, fontSize: "clamp(2.5rem, 5vw, 4.5rem)", lineHeight: 1.04, letterSpacing: "-0.015em", color: "var(--ink-1)", marginBottom: "3.5rem", marginTop: 0 }}>
+          See what you see.
+        </h2>
+
+        <div style={{ maxWidth: 640, margin: "0 auto" }}>
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+            <select
+              value={visionMode}
+              onChange={(e) => setVisionMode(e.target.value as VisionMode)}
+              className="dash-input"
+              style={{ flex: 1 }}
+            >
+              <option value="detect">detect — Qwen3-VL-235B</option>
+              <option value="stream">stream — Nemotron Nano 2 VL</option>
+            </select>
+            <input
+              value={visionPrompt}
+              onChange={(e) => setVisionPrompt(e.target.value)}
+              className="dash-input"
+              style={{ flex: 2 }}
+            />
+          </div>
+          <CameraFeed onFrame={handleFrame} />
+          <pre className="dash-pre" style={{ marginTop: "0.75rem", textAlign: "left" }}>
+            {visionBusy ? "Analyzing..." : visionResult || "Capture a frame to analyze."}
+          </pre>
         </div>
       </section>
 
