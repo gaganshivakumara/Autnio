@@ -14,6 +14,9 @@ const SIX_MONTHS_MS = 182 * 24 * 60 * 60 * 1000;
 const ASIN_RE = /\/(?:dp|gp\/product|product-reviews)\/([A-Z0-9]{10})/;
 
 export const handler = async (event) => {
+  const method = event.requestContext?.http?.method ?? event.httpMethod;
+  if (method === 'OPTIONS') return bedrockResponse(event, 200, 'OK', {});
+
   try {
     const { query } = parseBody(event);
     if (!query) return errorResponse(event, 400, 'Missing required field: query');

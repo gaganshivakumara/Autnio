@@ -4,6 +4,10 @@
  */
 
 export function bedrockResponse(event, statusCode, result, data = {}) {
+  if (!event?.actionGroup) {
+    return restResponse(statusCode, { result, data });
+  }
+
   return {
     messageVersion: '1.0',
     response: {
@@ -23,6 +27,10 @@ export function bedrockResponse(event, statusCode, result, data = {}) {
 }
 
 export function errorResponse(event, statusCode, message) {
+  if (!event?.actionGroup) {
+    return restResponse(statusCode, { message });
+  }
+
   return {
     messageVersion: '1.0',
     response: {
@@ -41,8 +49,25 @@ export function errorResponse(event, statusCode, message) {
   };
 }
 
+export function restResponse(statusCode, body) {
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Methods': 'POST,OPTIONS',
+    },
+    body: JSON.stringify(body),
+  };
+}
+
 // Flatten Bedrock Agent requestBody properties array into a plain object.
 export function parseBody(event) {
+  if (event?.body) {
+    return typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+  }
+
   const props =
     event?.requestBody?.content?.['application/json']?.properties ?? [];
   return Object.fromEntries(props.map(({ name, value }) => [name, value]));

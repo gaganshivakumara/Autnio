@@ -1,8 +1,7 @@
 // Product/place discovery orchestrator for the camera path.
 //
-// Flow: a captured camera frame → Qwen3-VL identifies the item → the
-// identification is sent to the chat agent, which calls the `productDiscovery`
-// action (Apify via MCP) → the agent's spoken narration is read back aloud.
+// Flow: a captured camera frame → Qwen3-VL identifies the item → direct
+// product-discovery lookup → the spoken narration is read back aloud.
 //
 // Designed for blind / low-vision use: every stage emits audio, and the only
 // physical action required is pointing the camera (the trigger is a voice command).
@@ -68,7 +67,7 @@ export async function discoverFromFrame(
     const identification = vision.result.trim().split(/\s+/).slice(0, 5).join(" ");
 
     onProgress?.("scraping", identification);
-    const answer = await askAgentAboutItem(identification, idToken, sessionId);
+    const answer = await discoverProduct(identification, idToken, sessionId);
 
     onProgress?.("done", identification);
     await speakText(answer, idToken);
@@ -81,26 +80,22 @@ export async function discoverFromFrame(
   }
 }
 
-/** Send the identified item to the agent, which runs productDiscovery and returns the spoken narration. */
-async function askAgentAboutItem(identification: string, idToken?: string, sessionId?: string): Promise<string> {
-  const message =
-    `I'm pointing my camera at a product identified as: "${identification}". ` +
-    `Use product discovery to search Amazon and tell me how it is.`;
-
-  const res = await fetch(`${restApiUrl}/chat`, {
+/** Send the identified item straight to the product-discovery API. */
+async function discoverProduct(identification: string, idToken?: string, sessionId?: string): Promise<string> {
+  const res = await fetch(`${restApiUrl}/product-discovery`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
     },
-    body: JSON.stringify({ message, ...(sessionId ? { sessionId } : {}) }),
+    body: JSON.stringify({ query: identification, ...(sessionId ? { sessionId } : {}) }),
   });
 
   if (!res.ok) throw new Error(`Discovery request failed: ${res.status}`);
   const text = await res.text();
   try {
-    const parsed = JSON.parse(text) as { response?: string };
-    return parsed.response ?? text;
+    const parsed = JSON.parse(text) as { result?: string; response?: string };
+    return parsed.result ?? parsed.response ?? text;
   } catch {
     return text;
   }

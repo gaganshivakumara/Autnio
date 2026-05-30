@@ -2,72 +2,12 @@ openapi: "3.0.0"
 info:
   title: web-data
   version: "1.0"
-  description: Web scraping and research via Apify
+  description: Product discovery via Apify
 paths:
-  /apify-run:
-    post:
-      summary: Run any Apify actor with custom input
-      operationId: apifyRun
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [actorId]
-              properties:
-                actorId:
-                  type: string
-                  description: "Apify actor ID (e.g. apify/web-scraper)"
-                input:
-                  type: string
-                  description: JSON-encoded input object for the actor
-                waitSecs:
-                  type: string
-                  description: Max seconds to wait for actor to finish (default 60)
-      responses:
-        "200":
-          description: Actor run completed and results returned
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-
-  /apify-jobs:
-    post:
-      summary: Search job boards and return structured listings
-      operationId: apifyJobs
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [keywords]
-              properties:
-                keywords:
-                  type: string
-                  description: "Job search keywords (e.g. \"software engineer Python\")"
-                location:
-                  type: string
-                  description: Job location filter (e.g. "San Francisco, CA")
-                limit:
-                  type: string
-                  description: Max listings to return (default 20)
-                remote:
-                  type: string
-                  description: Filter for remote-only jobs ("true" or "false")
-      responses:
-        "200":
-          description: Job listings returned
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-
   /product-discovery:
     post:
       summary: Discover an Amazon product — search Amazon, scrape the first result's price, rating and recent reviews
+      description: Search Amazon for a product query, inspect the first result, and return price, rating, availability, and recent reviews.
       operationId: productDiscovery
       requestBody:
         required: true
@@ -86,37 +26,6 @@ paths:
       responses:
         "200":
           description: Discovery summary returned, including a spoken-format narration in `result`
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SuccessResponse"
-
-  /apify-research:
-    post:
-      summary: Run Google search or direct web scrape for research
-      operationId: apifyResearch
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [query]
-              properties:
-                query:
-                  type: string
-                  description: Search query string or URL to scrape
-                type:
-                  type: string
-                  description: "\"search\" for Google results, \"web\" for direct page scrape"
-                  enum: [search, web]
-                  default: search
-                maxResults:
-                  type: string
-                  description: Max results to return (default 10)
-      responses:
-        "200":
-          description: Research results returned
           content:
             application/json:
               schema:
