@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const restApiUrl = import.meta.env.VITE_REST_API_URL as string;
+const restApiUrl = import.meta.env.VITE_VOICE_API_URL as string;
 
 export function ChatInterface({ idToken }: { idToken?: string }): JSX.Element {
   const [message, setMessage] = useState("");

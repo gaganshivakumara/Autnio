@@ -1,5 +1,6 @@
-const uploadEndpoint = import.meta.env.VITE_S3_UPLOAD_LAMBDA_URL as string;
-const restApiUrl = import.meta.env.VITE_REST_API_URL as string;
+const apiUrl = import.meta.env.VITE_VOICE_API_URL as string;
+const uploadEndpoint = `${apiUrl}/upload`;
+const restApiUrl = apiUrl;
 
 export type VisionMode = "detect" | "stream";
 
