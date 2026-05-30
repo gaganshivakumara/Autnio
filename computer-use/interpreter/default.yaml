@@ -1,6 +1,28 @@
 version: 0.2.5
+
 llm:
   model: bedrock/us.anthropic.claude-sonnet-4-6
   aws_region_name: us-east-1
+  temperature: 0.1           # Low = more deterministic, consistent code
+  context_window: 200000     # Claude Sonnet 4.6 supports 200K
+  max_tokens: 4096           # Allow longer code/responses
+  supports_vision: true      # Let OI take screenshots and analyze them
+  supports_functions: true
+
+# Run code without asking for confirmation — essential for relay automation
 auto_run: true
 safe_mode: off
+
+# Enable the computer control API: screenshot, mouse, keyboard, browser
+computer:
+  import_computer_api: true
+
+custom_instructions: |
+  You are an automation agent running on the user's local macOS machine.
+  Tasks are dispatched to you remotely by an AI orchestration layer.
+  Keep responses concise — avoid lengthy explanations unless asked.
+  When executing computer tasks:
+  - Prefer using the computer API (computer.browser, computer.mouse, computer.keyboard) for GUI tasks
+  - Use Python webbrowser or subprocess for simple open/launch tasks
+  - Always confirm what you did at the end in one sentence
+  - If a task fails, report the exact error clearly
