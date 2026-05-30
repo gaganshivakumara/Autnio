@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { motion, AnimatePresence } from "motion/react";
 import { ColorOrb } from "@/components/ui/ai-input";
 import { speakText } from "../voice/VoiceOutput";
+import { startVoiceSession, type VoiceSession } from "../voice/VoiceInput";
 import { isCaptureCommand } from "../voice/commands";
 
 const chatEndpoint: string =
@@ -12,7 +13,7 @@ const chatEndpoint: string =
 
 type Message = { role: "user" | "assistant"; text: string };
 
-export interface ChatHandle { open: () => void; }
+export interface ChatHandle { open: () => void; startVoice: () => void; }
 
 const W = 520;
 const H_OPEN = 500;
@@ -45,19 +46,6 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   blockquote: ({ children }) => <blockquote style={{ borderLeft: "2px solid var(--green-atmos)", paddingLeft: "0.8em", margin: "0.5em 0", color: "var(--ink-3)", fontStyle: "italic" }}>{children}</blockquote>,
 };
 
-type SRInstance = {
-  continuous: boolean; interimResults: boolean; lang: string;
-  onresult: ((e: { results: { length: number; [i: number]: { isFinal: boolean; [j: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
-  onend: (() => void) | null;
-  onerror: ((e: { error: string }) => void) | null;
-  start(): void; stop(): void;
-};
-
-function getSR(): (new () => SRInstance) | undefined {
-  const w = window as unknown as Record<string, unknown>;
-  return (w["SpeechRecognition"] ?? w["webkitSpeechRecognition"]) as ((new () => SRInstance) | undefined);
-}
-
 export const ChatInterface = React.forwardRef<
   ChatHandle,
   {
@@ -69,20 +57,29 @@ export const ChatInterface = React.forwardRef<
     onCaptureCommand?: () => void;
   }
 >(function ChatInterface({ idToken, userId, sessionId, onSessionId, onCaptureCommand }, ref) {
-  const [isOpen, setIsOpen]           = useState(false);
-  const [messages, setMessages]       = useState<Message[]>([]);
-  const [input, setInput]             = useState("");
-  const [loading, setLoading]         = useState(false);
-  const [isSpeaking, setIsSpeaking]   = useState(false);
-  const [isListening, setIsListening] = useState(false);
+  const [isOpen, setIsOpen]               = useState(false);
+  const [messages, setMessages]           = useState<Message[]>([]);
+  const [input, setInput]                 = useState("");
+  const [loading, setLoading]             = useState(false);
+  const [isSpeaking, setIsSpeaking]       = useState(false);
+  const [isListening, setIsListening]     = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [voiceError, setVoiceError]       = useState("");
 
-  const bottomRef      = useRef<HTMLDivElement>(null);
-  const inputRef       = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<SRInstance | null>(null);
-  const baseTextRef    = useRef("");
+  const bottomRef             = useRef<HTMLDivElement>(null);
+  const inputRef              = useRef<HTMLTextAreaElement>(null);
+  const sessionRef            = useRef<VoiceSession | null>(null);
+  const pendingVoiceSubmit    = useRef(false);
+  const stopAndTranscribeRef  = useRef<() => void>(() => {});
+  const startListeningRef     = useRef<() => void>(() => {});
 
   React.useImperativeHandle(ref, () => ({
     open: () => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 250); },
+    startVoice: () => {
+      setIsOpen(true);
+      // Small delay lets the chat expand before asking for mic access
+      setTimeout(() => startListeningRef.current(), 350);
+    },
   }));
 
   useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 300); }, [isOpen]);
@@ -93,25 +90,48 @@ export const ChatInterface = React.forwardRef<
   }, [input]);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) { recognitionRef.current.onend = null; recognitionRef.current.stop(); recognitionRef.current = null; }
+    if (sessionRef.current) { sessionRef.current.cancel(); sessionRef.current = null; }
     setIsListening(false);
   }, []);
 
-  const startListening = useCallback(() => {
-    const SR = getSR(); if (!SR) return;
-    stopListening(); baseTextRef.current = input.trim();
-    const r = new SR(); r.continuous = true; r.interimResults = true; r.lang = "en-US";
-    r.onresult = (e) => {
-      let finals = ""; let interim = "";
-      for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finals += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+  const stopAndTranscribe = useCallback(async () => {
+    const session = sessionRef.current;
+    if (!session) { setIsListening(false); return; }
+    sessionRef.current = null;
+    setIsListening(false);
+    setIsTranscribing(true);
+    setVoiceError("");
+    try {
+      const transcript = await session.stop();
+      if (transcript.trim()) {
+        pendingVoiceSubmit.current = true;
+        setInput(transcript.trim());
       }
-      const base = baseTextRef.current; setInput((base ? base + " " : "") + finals + interim);
-    };
-    r.onend = () => { setIsListening(false); recognitionRef.current = null; };
-    r.onerror = (ev) => { if (ev.error !== "aborted") setIsListening(false); recognitionRef.current = null; };
-    r.start(); recognitionRef.current = r; setIsListening(true);
-  }, [input, stopListening]);
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : "Transcription failed");
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, []);
+
+  // Keep refs current so callbacks captured at session-start always call the latest version.
+  stopAndTranscribeRef.current = () => { void stopAndTranscribe(); };
+
+  const startListening = useCallback(() => {
+    if (isListening || loading) return;
+    setVoiceError("");
+    setIsListening(true);
+    startVoiceSession(idToken ?? "", { onSilence: () => stopAndTranscribeRef.current() })
+      .then((session) => {
+        sessionRef.current = session;
+      })
+      .catch((err: unknown) => {
+        setIsListening(false);
+        setVoiceError(err instanceof Error ? err.message : "Mic access denied");
+      });
+  }, [isListening, loading, idToken]);
+
+  startListeningRef.current = startListening;
 
   const sendMessage = useCallback(async (text: string): Promise<string> => {
     const agentSessionId = sessionId ?? `s-${Date.now()}`;
@@ -131,7 +151,7 @@ export const ChatInterface = React.forwardRef<
 
   const handleSend = useCallback(async () => {
     const text = input.trim(); if (!text || loading) return;
-    stopListening(); setInput("");
+    stopListening(); setInput(""); setVoiceError("");
 
     // Intercept capture-intent phrases and hand off to the camera instead.
     if (onCaptureCommand && isCaptureCommand(text)) {
@@ -152,6 +172,14 @@ export const ChatInterface = React.forwardRef<
     } finally { setLoading(false); }
   }, [input, loading, sendMessage, idToken, stopListening, onCaptureCommand]);
 
+  // Auto-send once the server transcript lands in input state.
+  useEffect(() => {
+    if (!isTranscribing && pendingVoiceSubmit.current && input.trim()) {
+      pendingVoiceSubmit.current = false;
+      void handleSend();
+    }
+  }, [isTranscribing, input, handleSend]);
+
   const handleClose = useCallback(() => { setIsOpen(false); stopListening(); }, [stopListening]);
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); }
@@ -167,9 +195,9 @@ export const ChatInterface = React.forwardRef<
       <div style={{ height: H_CLOSED, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 0 12px", borderBottom: isOpen ? "1px solid var(--glass-stroke)" : "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <ColorOrb dimension="22px" spinDuration={isSpeaking ? 6 : 20} tones={{ base: "oklch(22% 0.04 160)", accent1: "oklch(62% 0.14 155)", accent2: "oklch(48% 0.12 162)", accent3: "oklch(55% 0.08 150)" }} />
-          <button onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 200); }} disabled={loading}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font-sans)", fontSize: "0.88rem", letterSpacing: "0.01em", color: isSpeaking ? "var(--green-moss)" : "var(--ink-2)", transition: "color 0.2s" }}>
-            {loading ? "thinking..." : isSpeaking ? "speaking..." : "Ask halo"}
+          <button onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 200); }} disabled={loading || isTranscribing}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font-sans)", fontSize: "0.88rem", letterSpacing: "0.01em", color: voiceError ? "oklch(55% 0.18 25)" : isSpeaking ? "var(--green-moss)" : isListening ? "oklch(45% 0.14 155)" : "var(--ink-2)", transition: "color 0.2s" }}>
+            {voiceError ? voiceError : loading ? "thinking..." : isTranscribing ? "transcribing..." : isSpeaking ? "speaking..." : isListening ? "listening... (tap to send)" : "Ask halo"}
           </button>
         </div>
         {isOpen && (
@@ -206,7 +234,7 @@ export const ChatInterface = React.forwardRef<
 
       {/* Input row */}
       <div style={{ flexShrink: 0, borderTop: "1px solid var(--glass-stroke)", display: "flex", alignItems: "flex-end", gap: 6, padding: "6px 8px", background: "rgba(255,255,255,0.18)" }}>
-        <button type="button" onClick={isListening ? stopListening : startListening} aria-label={isListening ? "Stop" : "Voice"}
+        <button type="button" onClick={isListening ? () => { void stopAndTranscribe(); } : startListening} aria-label={isListening ? "Stop" : "Voice"} disabled={isTranscribing || loading}
           style={{ flexShrink: 0, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: isListening ? "1px solid oklch(55% 0.14 155)" : "1px solid var(--glass-stroke)", background: isListening ? "oklch(55% 0.14 155 / 0.12)" : "transparent", color: isListening ? "oklch(45% 0.14 155)" : "var(--ink-3)", cursor: "pointer", transition: "all 0.15s" }}>
           {isListening ? (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="oklch(45% 0.14 155)" stroke="none"><rect x="1" y="1" width="10" height="10" rx="2"/></svg>

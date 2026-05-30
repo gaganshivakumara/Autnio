@@ -356,54 +356,9 @@ async def relay_loop(code: str) -> None:
             await asyncio.sleep(delay)
 
 
-# ── Local voice loop ──────────────────────────────────────────────────────────
-async def voice_loop() -> None:
-    """
-    Continuously listen on the local microphone, send transcripts through the
-    same agentic loop as WebSocket tasks, and speak responses back via Polly.
-    Runs as a concurrent asyncio task alongside relay_loop.
-    """
-    try:
-        from voice import listen, speak  # type: ignore[import]
-    except ImportError:
-        print("  Voice deps not installed — local voice disabled.", flush=True)
-        return
-
-    print("  🎙  Local voice mode active (speak to send tasks directly)\n", flush=True)
-    loop = asyncio.get_event_loop()
-
-    while True:
-        try:
-            # Run blocking mic capture in thread pool so relay can still receive WS msgs
-            transcript = await loop.run_in_executor(None, listen)
-            if not transcript:
-                continue
-
-            print(f"\n── Voice task ──────────────────────────────\n{transcript}\n", flush=True)
-            output_chunks: list[str] = []
-
-            def _on_output(chunk: str) -> None:
-                output_chunks.append(chunk)
-                print(chunk, end="", flush=True)
-
-            result = await loop.run_in_executor(None, run_task, transcript, _on_output)
-            print(f"\n  ✓ done", flush=True)
-
-            # Speak the final response
-            if result.strip():
-                await loop.run_in_executor(None, speak, result)
-
-        except Exception as exc:
-            print(f"  Voice loop error: {exc}", flush=True)
-            await asyncio.sleep(1)
-
-
 async def _main_async(code: str) -> None:
-    """Run relay + voice concurrently."""
-    await asyncio.gather(
-        relay_loop(code),
-        voice_loop(),
-    )
+    """Run relay loop."""
+    await relay_loop(code)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

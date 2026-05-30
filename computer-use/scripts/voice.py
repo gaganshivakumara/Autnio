@@ -103,7 +103,7 @@ def listen(timeout: float = RECORD_SECONDS, silence_threshold: float = 0.01) -> 
         return ""
 
     if transcript:
-        print(f"  Heard: "{transcript}"", flush=True)
+        print(f'  Heard: "{transcript}"', flush=True)
     else:
         print("  (no speech detected)", flush=True)
     return transcript

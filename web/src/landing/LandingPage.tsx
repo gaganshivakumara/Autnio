@@ -24,7 +24,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
     return () => obs.disconnect();
   }, []);
 
-  const handleWakeWord = useCallback(() => { morphRef.current?.open(); }, []);
+  const handleWakeWord = useCallback(() => { morphRef.current?.startVoice(); }, []);
   useWakeWord(handleWakeWord, chatInView);
 
   const paired = !!savedCode;
