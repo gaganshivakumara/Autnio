@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
-export function CameraFeed({ onFrame }: { onFrame: (blob: Blob) => void }): JSX.Element {
+export function CameraFeed({
+  onFrame,
+  registerCapture,
+  captureLabel = "Analyze Scene",
+}: {
+  onFrame: (blob: Blob) => void;
+  // Hands the parent an imperative capture() so a voice command can trigger the
+  // shutter without an on-screen tap (accessibility / hands-free discovery).
+  registerCapture?: (capture: () => void) => void;
+  captureLabel?: string;
+}): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string>("");
 
@@ -31,12 +41,16 @@ export function CameraFeed({ onFrame }: { onFrame: (blob: Blob) => void }): JSX.
     canvas.toBlob((blob) => blob && onFrame(blob), "image/jpeg", 0.85);
   };
 
+  useEffect(() => {
+    registerCapture?.(captureFrame);
+  }, [registerCapture]);
+
   return (
     <div className="cameraFeed">
       <video ref={videoRef} autoPlay playsInline muted />
       {error ? <p className="error">{error}</p> : null}
       <button type="button" onClick={captureFrame}>
-        Analyze Scene
+        {captureLabel}
       </button>
     </div>
   );

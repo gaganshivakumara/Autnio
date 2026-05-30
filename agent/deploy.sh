@@ -114,7 +114,7 @@ deploy_lambda() {
 echo "==> Deploying action group Lambdas..."
 sleep 5
 deploy_lambda "${PREFIX}-agent-dispatch" "dispatch.handler" ""
-deploy_lambda "${PREFIX}-agent-apify" "apify_scrape.handler" ""
+deploy_lambda "${PREFIX}-agent-apify" "apify_scrape.handler" "APIFY_MCP_URL=${APIFY_MCP_URL:-https://mcp.apify.com/mcp},APIFY_PRODUCT_ACTOR=${APIFY_PRODUCT_ACTOR:-junglee/amazon-crawler}"
 deploy_lambda "${PREFIX}-agent-box" "box_ops.handler" ""
 deploy_lambda "${PREFIX}-agent-user" "user_prefs.handler" "DYNAMODB_TABLE=autnio-dev"
 deploy_lambda "${PREFIX}-agent-vision" "vision_action.handler" "ROUTER_FUNCTION_NAME=${ROUTER_FN}"

@@ -2,7 +2,7 @@
   "agentName": "autnio-agent",
   "description": "Autnio personal AI agent — digital and physical world automation",
   "foundationModel": "anthropic.claude-3-5-sonnet-20241022-v2:0",
-  "idleSessionTTLInSeconds": 3600,
+  "idleSessionTTLInSeconds": 600,
   "instructionFile": "agent/instructions.txt",
   "actionGroups": [
     {

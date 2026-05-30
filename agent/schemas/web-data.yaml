@@ -65,6 +65,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
+  /product-discovery:
+    post:
+      summary: Discover an Amazon product — search Amazon, scrape the first result's price, rating and recent reviews
+      operationId: productDiscovery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  description: "Short Amazon search description, MAX 5 WORDS (e.g. \"blue american tourister laptop bag\"). May come from speech or from a vision identification of a camera frame. Only the first search result is scraped."
+                maxReviews:
+                  type: string
+                  description: "Max recent review snippets to include (default 3, capped at 5). Only reviews from the last 6 months are used."
+      responses:
+        "200":
+          description: Discovery summary returned, including a spoken-format narration in `result`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
   /apify-research:
     post:
       summary: Run Google search or direct web scrape for research
