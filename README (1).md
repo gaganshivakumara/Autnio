@@ -2,7 +2,7 @@
 
 **4 developers. 4 ownership areas. One unified AI platform.**
 
-This folder divides the full Autnio build across a team of four. Each developer owns a clear slice of the system with defined deliverables, handoff points, and a definition of done.
+This guide divides the full Autnio build across a team of four. Each developer owns a clear slice of the system with defined deliverables, handoff points, and a definition of done.
 
 ---
 
@@ -11,16 +11,16 @@ This folder divides the full Autnio build across a team of four. Each developer 
 | Dev | Area | Core Tech |
 |---|---|---|
 | [Dev 1](./DEV1_AI_AGENT.md) | AI Agent & Orchestration | Amazon Bedrock Agents |
-| [Dev 2](./DEV2_BACKEND.md) | Backend, Automation & Data | AWS Lambda, DynamoDB, Apify, Box |
-| [Dev 3](./DEV3_INFRA.md) | Auth, Infrastructure & DevOps | Cognito, CDK, API Gateway, CI/CD |
-| [Dev 4](./DEV4_VISION.md) | Vision, Mobile & Smart Glasses | Rekognition, Textract, Polly, React Native |
+| [Dev 2](./DEV2_BACKEND.md) | Backend, Automation & Data | AWS Lambda, DynamoDB, Apify, Box, Open Interpreter |
+| [Dev 3](./DEV3_INFRA.md) | Auth, Infrastructure & DevOps | Cognito, CDK, API Gateway, CI/CD, Web Hosting |
+| [Dev 4](./DEV4_VISION.md) | Vision & Web App | Qwen3-VL-235B, Nemotron Nano 2 VL (Bedrock), React Web App |
 
 ---
 
 ## How the Pieces Connect
 
 ```
-User (Voice / Text / Phone / Smart Glasses)
+Web App / Phone Camera (User's device)
                 │
                 ▼
         API Gateway  ◄──────────── Dev 3 (infra + auth)
@@ -30,21 +30,20 @@ User (Voice / Text / Phone / Smart Glasses)
                 ▼
      Bedrock Agent  ◄──────────── Dev 1 (agent + orchestration)
                 │
-    ┌───────────┼────────────┐
-    ▼           ▼            ▼
- Lambda      Apify         Box
- Functions   Actors        API
-    └───────────────────────┘
-             Dev 2 (backend + data)
-                │
-           DynamoDB
-                │
-        ┌───────┴────────┐
-        ▼                ▼
-  Vision Lambdas    Mobile App
-  Rekognition       Smart Glasses
-  Textract / Polly
-        Dev 4 (vision + mobile)
+    ┌───────────┼────────────┬──────────────┐
+    ▼           ▼            ▼              ▼
+ Lambda      Apify         Box          Vision Models
+ Functions   Actors        API          ├─ Qwen3-VL-235B
+    │                                   └─ Nemotron Nano 2 VL
+    │  Dev 2 (backend + data + OI dispatch)     Dev 4 (vision)
+    │
+    │ WebSocket relay (via Dev 4 web app)
+    ▼
+Open Interpreter (user's local machine)
+   └─ exec() on user's desktop
+            │
+            ▼
+       DynamoDB  ◄──── state, preferences, history
 ```
 
 ---
@@ -55,14 +54,17 @@ User (Voice / Text / Phone / Smart Glasses)
 ```
 autnio/
 ├── agent/            # Dev 1 — Bedrock schemas and prompt config
+│   ├── schemas/      # OpenAPI action group definitions
+│   └── prompts/      # Agent system prompt
 ├── functions/        # Dev 2 — Lambda handlers
-│   ├── automation/
-│   ├── files/
-│   ├── data/
-│   ├── user/
+│   ├── automation/   # OI dispatch
+│   ├── files/        # Box integration
+│   ├── data/         # Apify integration
+│   ├── user/         # DynamoDB profile/history
 │   └── vision/       # Dev 4 — vision Lambda handlers
+├── interpreter/      # Dev 2 — Open Interpreter config
 ├── infra/            # Dev 3 — CDK stacks
-├── mobile/           # Dev 4 — React Native app
+├── web/              # Dev 4 — React web app
 └── docs/             # This folder
 ```
 
@@ -78,6 +80,9 @@ APIFY_API_TOKEN
 BOX_CLIENT_ID
 BOX_CLIENT_SECRET
 BOX_CONFIG_JSON
+QWEN_VL_MODEL_ID          # qwen.qwen3-vl-235b-a22b
+NEMOTRON_VL_MODEL_ID      # nvidia.nemotron-nano-12b-v2
+OI_BEDROCK_MODEL_ID       # Bedrock model ID used by Open Interpreter
 ```
 
 ### Response Format (all Lambda functions)
@@ -104,10 +109,10 @@ Errors must return `statusCode` 4xx/5xx with a `message` field so the Bedrock Ag
 
 Start here to avoid blockers:
 
-1. **Dev 3 first** — provision infra, Cognito, DynamoDB, API Gateway, and CI/CD pipeline. Everyone else depends on this.
-2. **Dev 2 in parallel** — build Lambda functions and DynamoDB schema. Can be tested locally with mock events.
+1. **Dev 3 first** — provision infra, Cognito, DynamoDB, API Gateway (REST + WebSocket), and CI/CD pipeline. Everyone else depends on this.
+2. **Dev 2 in parallel** — build Lambda functions and DynamoDB schema. Can be tested locally with mock events. Also sets up Open Interpreter config and WebSocket dispatch logic.
 3. **Dev 1 after Dev 2** — needs Lambda ARNs to register action groups.
-4. **Dev 4 in parallel with Dev 1** — vision Lambdas can be built and tested independently; mobile app needs Cognito config from Dev 3.
+4. **Dev 4 in parallel with Dev 1** — vision Lambdas and web app can be built independently once Dev 3 delivers Cognito config and API Gateway URLs.
 
 ---
 
@@ -115,20 +120,22 @@ Start here to avoid blockers:
 
 | Provides → | Dev 1 | Dev 2 | Dev 3 | Dev 4 |
 |---|---|---|---|---|
-| **Dev 1** | — | — | — | `vision` action group schema |
-| **Dev 2** | Lambda ARNs | — | DynamoDB table name, IAM needs | `get-profile`, `box-read` functions |
-| **Dev 3** | Cognito Pool IDs, JWT setup | IAM roles, Secrets paths | — | API Gateway URL, IAM role for vision |
-| **Dev 4** | Vision Lambda ARNs | — | Mobile app bundle | — |
+| **Dev 1** | — | — | Agent ID + Alias ID | `vision` action group schema |
+| **Dev 2** | Lambda ARNs, OI WebSocket message format | — | DynamoDB table name, IAM needs | `get-profile`, `box-read` Lambda ARNs |
+| **Dev 3** | Cognito Pool IDs, JWT setup | IAM roles, Secrets paths, WebSocket API URL | — | API Gateway URLs, Cognito config |
+| **Dev 4** | Vision Lambda ARNs | OI WebSocket relay client (browser-side) | Web app build (for S3/CloudFront deploy) | — |
 
 ---
 
 ## Prerequisites (Dev 3 sets these up — everyone else just uses them)
 
-- AWS account with Bedrock, Lambda, DynamoDB, Cognito, Rekognition, Textract, Polly, SES enabled
+- AWS account with Bedrock, Lambda, DynamoDB, Cognito, and API Gateway enabled
+- Bedrock model access for `qwen.qwen3-vl-235b-a22b` and `nvidia.nemotron-nano-12b-v2`
 - Apify account + API token
 - Box developer account + OAuth 2.0 app credentials
 - GitHub repo with Actions enabled
-- Node.js 18+
+- Node.js 18+ (CDK + web app)
+- Python 3.10+ with `open-interpreter` installed (`pip install open-interpreter`)
 
 ---
 
