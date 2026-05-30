@@ -46,7 +46,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
   };
 
   const scrollToChat = () => {
-    document.getElementById("chat")?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("voice")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
@@ -55,7 +55,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
       <Capabilities />
 
       <section
-        id="chat"
+        id="voice"
         style={{
           padding: "clamp(5rem, 12vh, 9rem) clamp(1.5rem, 6vw, 6rem)",
           maxWidth: 1280,
@@ -65,7 +65,7 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
         }}
       >
         <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.32em", color: "var(--ink-3)", marginBottom: "1.4rem" }}>
-          Chat
+          Voice
         </div>
         <h2 style={{ fontFamily: "var(--font-sans)", fontWeight: 300, fontSize: "clamp(2.5rem, 5vw, 4.5rem)", lineHeight: 1.04, letterSpacing: "-0.015em", color: "var(--ink-1)", marginBottom: "3.5rem", marginTop: 0 }}>
           Everything in one place.

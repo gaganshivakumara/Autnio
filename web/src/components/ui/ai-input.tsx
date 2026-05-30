@@ -14,7 +14,7 @@ interface OrbProps {
   spinDuration?: number;
 }
 
-const ColorOrb: React.FC<OrbProps> = ({
+export const ColorOrb: React.FC<OrbProps> = ({
   dimension = "192px",
   className,
   tones,
