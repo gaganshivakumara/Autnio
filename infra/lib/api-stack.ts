@@ -27,7 +27,7 @@ export class ApiStack extends cdk.Stack {
 
     this.api = new apigateway.RestApi(this, 'Api', {
       restApiName: `autnio-${appEnv}`,
-      description: 'Autnio main API',
+      description: 'Autnio main REST API',
       deployOptions: {
         stageName: appEnv,
         accessLogDestination: new apigateway.LogGroupLogDestination(accessLogGroup),
@@ -61,7 +61,7 @@ export class ApiStack extends cdk.Stack {
       },
     });
 
-    // Cognito JWT authorizer — all routes require a valid token by default
+    // Cognito JWT authorizer — all routes require a valid token
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'JwtAuthorizer', {
       authorizerName: `autnio-${appEnv}-jwt`,
       cognitoUserPools: [userPool],
@@ -80,37 +80,56 @@ export class ApiStack extends cdk.Stack {
         passthroughBehavior: apigateway.PassthroughBehavior.WHEN_NO_MATCH,
       });
 
-    // ── /profile ─────────────────────────────────────────────────────────────
+    // ── /chat — Bedrock Agent proxy (primary AI endpoint) ────────────────
+    this.api.root
+      .addResource('chat')
+      .addMethod('POST', mkIntegration(functions.chatAgent), defaultMethodOptions);
+
+    // ── /profile ─────────────────────────────────────────────────────────
     const profileResource = this.api.root.addResource('profile');
     profileResource.addMethod('GET', mkIntegration(functions.getProfile), defaultMethodOptions);
     profileResource.addMethod('PUT', mkIntegration(functions.updateProfile), defaultMethodOptions);
 
-    // ── /automation ──────────────────────────────────────────────────────────
+    // ── /automation ──────────────────────────────────────────────────────
     const automationResource = this.api.root.addResource('automation');
 
-    const emailResource = automationResource.addResource('email');
-    emailResource.addMethod('POST', mkIntegration(functions.sendEmail), defaultMethodOptions);
+    automationResource.addResource('email')
+      .addMethod('POST', mkIntegration(functions.sendEmail), defaultMethodOptions);
 
     const apifyResource = automationResource.addResource('apify');
     apifyResource.addMethod('POST', mkIntegration(functions.triggerApify), defaultMethodOptions);
-    const apifyRunResource = apifyResource.addResource('{runId}');
-    apifyRunResource.addMethod('GET', mkIntegration(functions.checkApifyRun), defaultMethodOptions);
+    apifyResource.addResource('{runId}')
+      .addMethod('GET', mkIntegration(functions.checkApifyRun), defaultMethodOptions);
 
-    // ── /files ───────────────────────────────────────────────────────────────
+    // ── /files ───────────────────────────────────────────────────────────
     const filesResource = this.api.root.addResource('files');
     filesResource.addMethod('GET', mkIntegration(functions.boxRead), defaultMethodOptions);
     filesResource.addMethod('POST', mkIntegration(functions.boxWrite), defaultMethodOptions);
 
-    // ── /vision ──────────────────────────────────────────────────────────────
+    // ── /vision ──────────────────────────────────────────────────────────
     const visionResource = this.api.root.addResource('vision');
-    visionResource.addResource('image').addMethod('POST', mkIntegration(functions.analyzeImage), defaultMethodOptions);
-    visionResource.addResource('text').addMethod('POST', mkIntegration(functions.extractText), defaultMethodOptions);
-    visionResource.addResource('speech').addMethod('POST', mkIntegration(functions.synthesizeSpeech), defaultMethodOptions);
+    visionResource.addResource('image')
+      .addMethod('POST', mkIntegration(functions.analyzeImage), defaultMethodOptions);
+    visionResource.addResource('text')
+      .addMethod('POST', mkIntegration(functions.extractText), defaultMethodOptions);
+    visionResource.addResource('speech')
+      .addMethod('POST', mkIntegration(functions.synthesizeSpeech), defaultMethodOptions);
+
+    // Upload pre-signed URL for camera frame → S3 (no body needed, just userId from JWT)
+    this.api.root.addResource('upload')
+      .addMethod('POST', mkIntegration(functions.uploadUrl), defaultMethodOptions);
+
+    // ── /voice — Dev 5 (Transcribe STT + Polly TTS) ──────────────────────
+    const voiceResource = this.api.root.addResource('voice');
+    voiceResource.addResource('transcribe')
+      .addMethod('POST', mkIntegration(functions.transcribe), defaultMethodOptions);
+    voiceResource.addResource('tts')
+      .addMethod('POST', mkIntegration(functions.tts), defaultMethodOptions);
 
     new cdk.CfnOutput(this, 'ApiEndpoint', {
       value: this.api.url,
       exportName: `autnio-${appEnv}-api-endpoint`,
-      description: 'API Gateway base URL — share with Dev 4 (mobile/glasses client)',
+      description: 'REST API base URL — share with Dev 4 (web app), Dev 5 (voice)',
     });
     new cdk.CfnOutput(this, 'ApiId', {
       value: this.api.restApiId,
