@@ -62,22 +62,23 @@ pip install --upgrade pip --quiet
 
 log "Installing Python dependencies…"
 pip install \
-  "open-interpreter[server]" \
   setuptools \
   boto3 \
   "Pillow>=10.0.0" \
+  "pyautogui>=0.9.54" \
   "amazon-transcribe>=0.6.4" \
-  "websockets>=12,<13" \
+  "websockets>=12,<14" \
   --quiet
+# computer-use agent extras
+pip install -r "${SCRIPT_DIR}/computer-use/scripts/requirements.txt" --quiet
 
 ok "Python dependencies installed"
 
 # Quick smoke check
 python -c "
-import boto3, PIL, amazon_transcribe, websockets
-print('  boto3, Pillow, amazon-transcribe, websockets — OK')
+import boto3, PIL, amazon_transcribe, websockets, pyautogui
+print('  boto3, Pillow, pyautogui, amazon-transcribe, websockets — OK')
 "
-interpreter --version | sed 's/^/  OI: /'
 
 # ── 3. AWS credentials ────────────────────────────────────────────────────────
 step "3/6  AWS credentials"
@@ -103,28 +104,19 @@ if [[ "${AWS_CONFIGURED}" == "false" ]]; then
   fi
 fi
 
-# ── 4. Bedrock Mantle API key (OI config) ─────────────────────────────────────
-step "4/6  Open Interpreter / Bedrock config"
+# ── 4. pyautogui macOS permissions ───────────────────────────────────────────
+step "4/6  macOS accessibility permissions (pyautogui)"
 
-OI_CONFIG="${SCRIPT_DIR}/interpreter/default.yaml"
-if grep -q "REPLACE_WITH_BEDROCK_API_KEY" "${OI_CONFIG}" 2>/dev/null; then
-  warn "interpreter/default.yaml still has the placeholder API key."
-  echo ""
-  echo "  Open Interpreter is configured to use Bedrock Mantle"
-  echo "  (https://bedrock-mantle.us-east-1.api.aws) which requires a separate key."
-  echo ""
-  read -rp "  Paste your Bedrock Mantle API key (or press Enter to skip): " BEDROCK_KEY
-  if [[ -n "${BEDROCK_KEY}" ]]; then
-    # Use sed to replace the placeholder
-    sed -i.bak "s|REPLACE_WITH_BEDROCK_API_KEY|${BEDROCK_KEY}|g" "${OI_CONFIG}"
-    rm -f "${OI_CONFIG}.bak"
-    ok "Bedrock API key written to interpreter/default.yaml"
-  else
-    warn "Skipped — OI relay will not work until you add the key to interpreter/default.yaml"
-  fi
-else
-  ok "interpreter/default.yaml already configured"
-fi
+echo ""
+echo "  The Autnio computer agent uses pyautogui to control your mouse, keyboard,"
+echo "  and screen. macOS requires explicit permissions:"
+echo ""
+echo "  1. System Settings → Privacy & Security → Screen Recording → add Terminal"
+echo "  2. System Settings → Privacy & Security → Accessibility → add Terminal"
+echo ""
+echo "  You can also run:  bash computer-use/scripts/macos-bootstrap.sh"
+echo ""
+ok "Reminder shown (no automatic action taken)"
 
 # ── 5. Node.js deps ───────────────────────────────────────────────────────────
 step "5/6  Node.js dependencies"
@@ -164,8 +156,8 @@ echo ""
 ok "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ok "  Setup complete!"
 ok ""
-ok "  Start the local OI relay + web demo:"
-ok "    ./start-demo.sh"
+ok "  Start the computer agent (to pair this machine):"
+ok "    .venv/bin/python computer-use/scripts/run-agent.py"
 ok ""
 ok "  Or run just the web app (deployed at CloudFront):"
 ok "    cd web && npm run dev"

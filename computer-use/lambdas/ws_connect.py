@@ -45,8 +45,9 @@ def _get_jwks() -> dict[str, Any]:
 
 
 def _validate_token(token: str) -> str:
-    if ALLOW_DEV_BYPASS and token == "demo-token":
-        return "demo-user"
+    # Dev bypass: accept any token and use it directly as the userId.
+    if ALLOW_DEV_BYPASS:
+        return token
     if jwt is None:
         raise ValueError("PyJWT not installed")
 

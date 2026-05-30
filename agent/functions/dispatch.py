@@ -107,16 +107,26 @@ def handler(event, context):
         return agent_response(
             event, 200,
             {
-                "result": "Open Interpreter relay not connected",
+                "result": "Computer agent not connected",
                 "message": (
-                    f"No active relay connection for user '{user_id}'. "
-                    "Ask the user to open the Autnio web app and ensure the relay shows green."
+                    f"No active agent connection found for access code '{user_id}'. "
+                    "Ask the user to: 1) run the Autnio computer agent script on their computer, "
+                    "2) enter the printed access code in the 'Connect Computer' panel in the dashboard, "
+                    "then try again."
                 ),
                 "data": {"status": "relay_disconnected", "task": task},
             },
         )
 
     task_id = body.get("taskId") or str(uuid.uuid4())
+
+    # Create the task record BEFORE sending via WebSocket so ws_result can
+    # update it without hitting a missing-key race condition.
+    try:
+        _create_task(task_id, user_id, task, session_id)
+    except Exception:  # noqa: BLE001
+        pass
+
     payload = {
         "type": "task",
         "taskId": task_id,
@@ -159,45 +169,33 @@ def handler(event, context):
             },
         )
 
-    # Create the task record so ws_result can update it.
-    try:
-        _create_task(task_id, user_id, task, session_id)
-    except Exception:  # noqa: BLE001
-        pass
-
-    # ── Wait for the result ───────────────────────────────────────────────────
-    # Poll DynamoDB until Open Interpreter finishes and the relay posts the
-    # result back, or until we hit the wait timeout.
+    # ── Wait for the computer agent to finish ────────────────────────────────
     item = _wait_for_result(task_id)
 
     if item is None:
-        # Task is still running — tell the agent so it can inform the user.
+        # Timed out — task is still running
         return agent_response(
             event, 200,
             {
-                "result": "Task is running",
+                "result": "Task still running",
                 "message": (
-                    "The task was dispatched and is still executing on the user's computer. "
-                    f"Task ID: {task_id}. The user can watch live output in the Relay tab."
+                    f"The task is taking longer than {TASK_WAIT_SECONDS}s. "
+                    "It will continue running on the computer in the background. "
+                    "Ask the user to check back shortly."
                 ),
                 "data": {"taskId": task_id, "status": "running"},
             },
         )
 
-    status = item.get("status", "unknown")
+    status = item.get("status", "complete")
     result_text = item.get("result", "")
-    chunks = item.get("partialOutput", [])
-
-    # Combine partial chunks as fallback if result field is empty.
-    if not result_text and chunks:
-        result_text = "".join(chunks) if isinstance(chunks, list) else str(chunks)
 
     if status == "failed":
         return agent_response(
             event, 200,
             {
                 "result": "Task failed",
-                "message": result_text or "Open Interpreter reported an error.",
+                "message": result_text or "The computer agent reported an error.",
                 "data": {"taskId": task_id, "status": "failed"},
             },
         )
@@ -206,7 +204,7 @@ def handler(event, context):
         event, 200,
         {
             "result": "Task completed",
-            "output": result_text,
+            "message": result_text or "The task completed successfully.",
             "data": {"taskId": task_id, "status": "complete"},
         },
     )

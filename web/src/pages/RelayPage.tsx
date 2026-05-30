@@ -1,20 +1,22 @@
 import { useRef, useState } from "react";
 import { SiteNav } from "../landing/SiteNav";
 import { startRelay, type RelayStatus } from "../relay/OIRelay";
+import type { RelayEvent } from "../relay/types";
 import { Button } from "../landing/Primitives";
+import { OIRelay } from "../relay/OIRelay";
 
 const wsEndpoint = import.meta.env.VITE_WS_API_URL as string;
 
 export function RelayPage() {
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [relayLog, setRelayLog] = useState<string[]>([]);
-  const relayRef = useRef<WebSocket | null>(null);
+  const relayRef = useRef<OIRelay | null>(null);
 
   const connectRelay = (): void => {
-    relayRef.current?.close();
+    relayRef.current?.disconnect();
     relayRef.current = startRelay({
       wsEndpoint,
-      onEvent: (event) => {
+      onEvent: (event: RelayEvent) => {
         if (event.type === "status") setRelayStatus(event.status);
         if (event.type === "log") setRelayLog((prev) => [...prev, event.message]);
       },
@@ -29,7 +31,7 @@ export function RelayPage() {
 
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "clamp(3rem, 8vh, 6rem) clamp(1.5rem, 6vw, 6rem)" }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.32em", color: "var(--ink-3)", marginBottom: "1.4rem" }}>
-          Open Interpreter Relay
+          Computer Relay
         </div>
         <h1 style={{ fontFamily: "var(--font-sans)", fontWeight: 300, fontSize: "clamp(2.5rem, 5vw, 4.5rem)", lineHeight: 1.04, letterSpacing: "-0.015em", color: "var(--ink-1)", marginBottom: "3.5rem", marginTop: 0 }}>
           Run it on your machine.

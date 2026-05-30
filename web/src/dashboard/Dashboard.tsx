@@ -2,7 +2,6 @@
 import { useRef, useState } from "react";
 import { ChatInterface } from "../chat/ChatInterface";
 import { FileBrowser } from "../files/FileBrowser";
-import { startRelay, type RelayStatus } from "../relay/OIRelay";
 import { CameraFeed } from "../vision/CameraFeed";
 import { analyzeFrame, uploadFrame, type VisionMode } from "../vision/visionApi";
 import { discoverFromFrame } from "../vision/productDiscovery";
@@ -11,39 +10,43 @@ import { recordAndTranscribe } from "../voice/VoiceInput";
 import { isCaptureCommand } from "../voice/commands";
 import { Button, RingMark } from "../landing/Primitives";
 
-const wsEndpoint = import.meta.env.VITE_WS_API_URL as string;
-
 export function Dashboard({ onBack }: { onBack: () => void }) {
-  const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
-  const [relayLog, setRelayLog] = useState<string[]>([]);
-  const [visionMode, setVisionMode] = useState<VisionMode>("detect");
+  // Computer pairing — pre-fill from localStorage; user must click Pair to activate
+  const storedCode = typeof localStorage !== "undefined"
+    ? (localStorage.getItem("autnio_access_code") ?? "")
+    : "";
+  const [accessCode, setAccessCode] = useState(storedCode);
+  const [savedCode, setSavedCode]   = useState(storedCode);
+
+  // Vision / product discovery
+  const [visionMode,   setVisionMode]   = useState<VisionMode>("detect");
   const [visionPrompt, setVisionPrompt] = useState("Describe the scene and identify important objects.");
   const [visionResult, setVisionResult] = useState("");
-  const [visionBusy, setVisionBusy] = useState(false);
+  const [visionBusy,   setVisionBusy]   = useState(false);
   const [discoveryStatus, setDiscoveryStatus] = useState("");
+
   // One Bedrock session per product: a capture mints a fresh id, follow-up
   // questions reuse it, and the next capture rotates it — so reviews/descriptions
-  // never bleed across products. Undefined means "let the backend mint one".
+  // never bleed across products.
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
-  const relayRef = useRef<WebSocket | null>(null);
-  const captureRef = useRef<(() => void) | null>(null);
 
-  const connectRelay = (): void => {
-    relayRef.current?.close();
-    relayRef.current = startRelay({
-      wsEndpoint,
-      onEvent: (event) => {
-        if (event.type === "status") setRelayStatus(event.status);
-        if (event.type === "log") setRelayLog((prev) => [...prev, event.message]);
-      },
-    });
+  const captureRef = useRef<(() => void) | null>(null);
+  const inputRef   = useRef<HTMLInputElement>(null);
+
+  const pairCode = accessCode.trim().toLowerCase();
+  const isPaired = !!savedCode;
+
+  const handlePair = (): void => {
+    if (!pairCode) return;
+    setSavedCode(pairCode);
+    localStorage.setItem("autnio_access_code", pairCode);
   };
 
   const handleFrame = async (blob: Blob): Promise<void> => {
     setVisionBusy(true);
     setVisionResult("");
     try {
-      const upload = await uploadFrame(blob, "anonymous");
+      const upload = await uploadFrame(blob, savedCode || "anonymous");
       const result = await analyzeFrame({
         imageS3Key: upload.imageS3Key,
         mode: visionMode,
@@ -77,11 +80,11 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
       });
       void identification;
     } catch {
-      // status already reflects the error via onProgress
+      // status already reflected via onProgress
     }
   };
 
-  // Hands-free entry point: record a command; if it's a capture intent, fire the shutter.
+  // Hands-free entry: record a command; if it's a capture intent, fire the shutter.
   const handleVoiceCapture = async (): Promise<void> => {
     setDiscoveryStatus("Listening…");
     try {
@@ -104,25 +107,53 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
           <RingMark size={22} stroke="var(--ink-1)" />
           <span className="dash-wordmark">halo</span>
         </button>
+        {isPaired && (
+          <div className="dash-nav-right">
+            <span className="dash-user-dot" style={{ background: "var(--green-atmos)" }} />
+            <span className="dash-status">computer: {savedCode}</span>
+          </div>
+        )}
       </nav>
 
       <main className="dash-content">
-        {/* Chat */}
-        <ChatInterface sessionId={sessionId} onSessionId={setSessionId} />
+        {/* Chat — sessionId shared with product discovery so follow-up questions work */}
+        <ChatInterface
+          userId={savedCode || undefined}
+          sessionId={sessionId}
+          onSessionId={setSessionId}
+        />
 
-        {/* Relay */}
+        {/* Computer pairing */}
         <section className="dash-card" id="relay-section">
-          <h2 className="dash-card-title">Open Interpreter Relay</h2>
-          <div className="dash-relay-status">
-            <span className="dash-user-dot" style={{
-              background: relayStatus === "connected" ? "var(--green-atmos)" : relayStatus === "error" ? "#b42318" : "var(--ink-4)",
-            }} />
-            <span className="dash-status">{relayStatus}</span>
+          <h2 className="dash-card-title">Connect Computer</h2>
+          <p style={{ fontSize: "0.85rem", color: "var(--ink-3)", margin: "0 0 1rem" }}>
+            Run <code style={{ fontSize: "0.82rem" }}>.venv/bin/python computer-use/scripts/run-agent.py</code> on the
+            target machine, then enter the printed access code below.
+          </p>
+          <div className="dash-grid">
+            <input
+              ref={inputRef}
+              className="dash-input"
+              placeholder="access code (e.g. ax7k2m)"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handlePair(); }}
+              style={{ letterSpacing: "0.1em", textTransform: "lowercase" }}
+            />
+            <Button
+              variant="primary"
+              onClick={handlePair}
+              style={{ fontSize: "0.88rem", padding: "0.7rem 1.4rem" }}
+              disabled={!pairCode}
+            >
+              {isPaired ? "Update" : "Pair"}
+            </Button>
           </div>
-          <Button variant="primary" onClick={connectRelay} style={{ fontSize: "0.88rem", padding: "0.7rem 1.4rem" }}>
-            Connect Relay
-          </Button>
-          <pre className="dash-pre">{relayLog.length ? relayLog.join("\n") : "Waiting for WebSocket endpoint."}</pre>
+          {isPaired && (
+            <pre className="dash-pre" style={{ marginTop: "0.75rem" }}>
+              {`Paired with computer: ${savedCode}\nTasks sent via chat will run on that machine.`}
+            </pre>
+          )}
         </section>
 
         {/* Vision */}
@@ -151,7 +182,7 @@ export function Dashboard({ onBack }: { onBack: () => void }) {
         <section className="dash-card" id="discovery-section">
           <h2 className="dash-card-title">Product Discovery</h2>
           <p className="dash-status">
-            Point the camera and say “take a picture”, or tap capture. Autnio describes the
+            Point the camera and say "take a picture", or tap capture. Autnio describes the
             product in a few words, searches Amazon, scrapes the top result, and reads back a summary.
           </p>
           <Button variant="primary" onClick={handleVoiceCapture} style={{ fontSize: "0.88rem", padding: "0.7rem 1.4rem" }}>

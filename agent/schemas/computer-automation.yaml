@@ -6,7 +6,10 @@ info:
 paths:
   /dispatch:
     post:
-      summary: Dispatch a general-purpose automation task to the user's local machine via Open Interpreter
+      summary: >
+        Dispatch a task that requires PHYSICAL CONTROL of the user's local machine —
+        clicking, typing, taking screenshots, navigating live apps or browser windows.
+        DO NOT use this for questions, math, explanations, or anything answerable by reasoning alone.
       operationId: dispatch
       requestBody:
         required: true
@@ -14,23 +17,28 @@ paths:
           application/json:
             schema:
               type: object
-              required: [task]
+              required: [task, userId]
               properties:
                 task:
                   type: string
-                  description: Natural language description of the task to perform on the user's computer
+                  description: >
+                    Detailed natural-language description of the physical computer task.
+                    Include the goal, any relevant URLs or app names, and what result to return.
+                userId:
+                  type: string
+                  description: The user's access code / relay identity. Read this from the session context — it is always provided as the userId session attribute.
                 sessionId:
                   type: string
                   description: Optional session ID to correlate task results
       responses:
         "200":
-          description: Task dispatched to Open Interpreter
+          description: Task completed — result contains what the agent observed or accomplished
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
         "503":
-          description: Open Interpreter not connected
+          description: Computer agent not connected
           content:
             application/json:
               schema:

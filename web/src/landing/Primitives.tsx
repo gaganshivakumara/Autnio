@@ -42,12 +42,14 @@ export function Button({
   light = false,
   onClick,
   style,
+  disabled = false,
 }: {
   children: ReactNode;
   variant?: ButtonVariant;
   light?: boolean;
   onClick?: () => void;
   style?: CSSProperties;
+  disabled?: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [press, setPress] = useState(false);
@@ -91,11 +93,12 @@ export function Button({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => { setHover(false); setPress(false); }}
       onMouseDown={() => setPress(true)}
       onMouseUp={() => setPress(false)}
-      style={{ ...base, ...variants[variant], ...style }}
+      style={{ ...base, ...variants[variant], ...(disabled ? { opacity: 0.45, cursor: "not-allowed", transform: "none" } : {}), ...style }}
     >
       {children}
     </button>

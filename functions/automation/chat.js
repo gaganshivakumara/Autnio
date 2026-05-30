@@ -1,10 +1,18 @@
 // REST handler: POST /chat
 // Invokes Bedrock Agent, persists a session log to DynamoDB.
 import { BedrockAgentRuntimeClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agent-runtime';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
-const bedrock = new BedrockAgentRuntimeClient({ region: process.env.AWS_REGION });
+// Computer-use tasks can take 90+ seconds — override the default 60s SDK socket timeout.
+const bedrock = new BedrockAgentRuntimeClient({
+  region: process.env.AWS_REGION,
+  requestHandler: new NodeHttpHandler({
+    requestTimeout: 270_000,   // 4.5 min — covers the full agent loop
+    connectionTimeout: 10_000,
+  }),
+});
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.AWS_REGION }));
 const TABLE = process.env.DYNAMODB_TABLE ?? 'autnio-main';
 
@@ -38,6 +46,8 @@ export const handler = async (event) => {
           userTimezone: prefs.timezone ?? 'UTC',
         },
         promptSessionAttributes: {
+          userId,
+          sessionId: agentSessionId,
           userPreferences: JSON.stringify(prefs),
         },
       },
@@ -69,5 +79,13 @@ export const handler = async (event) => {
 };
 
 function respond(statusCode, body) {
-  return { statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    },
+    body: JSON.stringify(body),
+  };
 }

@@ -1,53 +1,62 @@
 # Computer Use Module
 
-This folder contains a self-contained implementation of the Autnio computer-use flow, scoped around relay, WebSocket lifecycle, local execution wiring, and infrastructure support.
+This folder contains the Autnio computer-use flow: an Anthropic Computer Use
+agentic loop (backed by AWS Bedrock) that runs on the user's local machine,
+controlled remotely via the Autnio WebSocket relay.
 
-It intentionally excludes the dispatch implementation currently located in `functions/agent/dispatch.py`, but defines the integration contract needed for that handoff.
+## How it works
 
-## Scope
+```
+Dashboard chat  →  Bedrock Agent  →  dispatch Lambda
+                                              │
+                                   post_to_connection (type=task)
+                                              │
+                                    API Gateway WebSocket
+                                              │
+                               run-agent.py (local machine)
+                                              │
+                              ┌───────────────┴───────────────┐
+                              │  Bedrock Computer Use loop    │
+                              │  Claude ↔ local tools         │
+                              │   screenshot → pyautogui      │
+                              │   bash → subprocess           │
+                              └───────────────────────────────┘
+                                              │
+                              output / done / error (WebSocket)
+```
 
-Included:
-
-- Browser relay to local Open Interpreter
-- WebSocket connect/disconnect/result Lambda handlers
-- Minimal direct AWS API provisioning for WebSocket + DynamoDB tables
-- Local testing scripts and integration tests
-- Protocol contract shared with Dev 2 and Dev 4
-
-Excluded:
-
-- Dev 2 backend automation dispatch
-- Full Autnio web app
-- Full repo-wide infra stacks
+Tasks are dispatched from the Autnio chat via the Bedrock Agent action group.
+The local agent executes tool calls (screenshot, click, type, bash) on the
+machine where `run-agent.py` is running, streaming results back over WebSocket.
 
 ## Folder Layout
 
 ```text
 computer-use/
 ├── README.md
+├── agent/
+│   ├── config.yaml             ← Bedrock model + system prompt config
+│   └── schemas/
 ├── docs/
 │   └── message-protocol.md
-├── interpreter/
-│   └── default.yaml
 ├── relay/
-│   ├── OIRelay.ts
+│   ├── OIRelay.ts              ← Browser relay (calls agent-server.py)
 │   ├── types.ts
 │   └── index.ts
-├── web-demo/
-├── lambdas/
-├── infra/
 ├── scripts/
+│   ├── run-agent.py            ← Headless local agent (main entry point)
+│   ├── agent-server.py         ← HTTP server for browser relay path
+│   ├── computer_use_core.py    ← Shared Bedrock loop + tool execution logic
+│   ├── requirements.txt
+│   └── local-ws-mock.py
+├── lambdas/                    ← WS connect/disconnect/result Lambdas
+├── infra/
 └── tests/
 ```
 
 ## Integration Contract (Dispatch + Dev 2)
 
-Current repository state:
-
-- `functions/agent/dispatch.py` currently returns a `503` placeholder (`pending_dev3`) and does not yet push WebSocket messages.
-- `agent/schemas/computer-automation.json` defines `/dispatch` with required `task` + `userId` and optional `sessionId`.
-
-When dispatch is implemented, it must send `type=task` payloads matching `docs/message-protocol.md`. The relay accepts missing `taskId` for compatibility and will generate one.
+The dispatch Lambda pushes `type=task` payloads matching `docs/message-protocol.md`.
 
 Required dispatch payload:
 
@@ -61,75 +70,85 @@ Required dispatch payload:
 }
 ```
 
-Expected outputs sent back by relay:
+Expected outputs sent back by the local agent:
 
-- `output` chunks while running
+- `output` chunks while running (action descriptions + Claude text)
 - `done` when complete
-- `error` when relay/OI fails
+- `error` when the loop fails
 
-## Open Interpreter Local Endpoint
+## Quick Start (Headless agent — recommended)
 
-Relay uses Open Interpreter's OpenAI-compatible route:
+This is the primary usage path. Run this on the machine you want to control.
 
-- `POST http://localhost:8000/openai/chat/completions`
-- streaming SSE enabled (`stream: true`)
+### 1. Install dependencies
 
-Do not use `GET /chat` here; that is not the built-in OpenAI-compatible contract.
+```bash
+cd computer-use
+python -m venv .venv
+source .venv/bin/activate
+pip install -r scripts/requirements.txt
+```
 
-## Quick Start
+### 2. Configure AWS credentials
 
-1. Install Open Interpreter and dependencies:
+```bash
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_DEFAULT_REGION=us-east-1
+# Optional: override the Bedrock model
+export BEDROCK_MODEL=us.anthropic.claude-sonnet-4-6
+```
 
-   ```bash
-   pip install open-interpreter
-   ```
+Or use an AWS profile in `~/.aws/credentials` — boto3 picks it up automatically.
 
-2. Start local OI server (from this folder):
+### 3. Run the agent
 
-   ```bash
-   ./scripts/start-oi.sh
-   ```
+```bash
+python computer-use/scripts/run-agent.py
+```
 
-3. Start local WebSocket mock server:
+The agent prints an access code and pairing URL. Enter the code in the
+Autnio dashboard "Connect Computer" card, then send tasks via chat.
 
-   ```bash
-   python3 ./scripts/local-ws-mock.py
-   ```
+## Browser Relay Path (agent-server.py)
 
-4. Run web demo:
+For the landing-page demo where `OIRelay.ts` runs in the browser:
 
-   ```bash
-   cd ./web-demo
-   npm install
-   npm run dev
-   ```
+```bash
+python computer-use/scripts/agent-server.py
+```
 
-5. Open the printed URL and run a simulated task.
+This starts a FastAPI server on `http://localhost:8001`. `OIRelay.ts` posts
+tasks to `POST /computer-use` and streams NDJSON results back.
 
-## macOS Local Install
+## Configuration
 
-Bootstrap all local prerequisites:
+Edit `agent/config.yaml` to change:
+
+- `model` — Bedrock model ID (must support `computer_20241022` tools)
+- `region` — AWS region
+- `max_tokens`, `max_iterations`
+- `system_prompt` — instructions sent to Claude on every task
+
+All fields can also be overridden by environment variables.
+
+## macOS prerequisites
+
+`pyautogui` requires screen recording permission:
+
+1. **System Preferences → Privacy & Security → Screen Recording** → add Terminal / your shell.
+2. **Accessibility** → add Terminal.
+
+Bootstrap helper:
 
 ```bash
 ./scripts/macos-bootstrap.sh
 ```
 
-Optional: auto-start Open Interpreter at login using `launchd`:
+## AWS Deployment (WebSocket infra)
 
-```bash
-./scripts/setup-launchd.sh
-```
-
-## AWS Deployment (Computer-Use Only, no CDK)
-
-`infra/provision.mjs` provisions directly through AWS APIs:
-
-- WebSocket API (`$connect`, `$disconnect`, `$default`)
-- `connections` DynamoDB table
-- `tasks` DynamoDB table
-- three Lambda handlers from `lambdas/`
-
-Install infra deps and deploy:
+`infra/provision.mjs` provisions the API Gateway WebSocket + DynamoDB tables
+needed by the relay:
 
 ```bash
 cd ./infra
@@ -137,30 +156,13 @@ npm install
 npm run deploy
 ```
 
-Outputs are written to `infra/deployment-outputs.json` and printed in stdout.
-
-Share these after deploy:
-
-- `WEBSOCKET_API_ENDPOINT` for Dev 2 dispatch Lambda
-- `CONNECTIONS_TABLE_NAME`, `TASKS_TABLE_NAME` for Dev 2 and ws handlers
-- `VITE_WS_API_URL` for web clients
-
-Current deployed values (latest run):
+Current deployed values:
 
 - `WEBSOCKET_API_ENDPOINT`: `wss://3cil79jtm9.execute-api.us-east-1.amazonaws.com/dev`
 - `CONNECTIONS_TABLE_NAME`: `autnio-computer-use-dev-connections`
 - `TASKS_TABLE_NAME`: `autnio-computer-use-dev-tasks`
-- `VITE_WS_API_URL`: `wss://3cil79jtm9.execute-api.us-east-1.amazonaws.com/dev`
 
-Integration notes for pulled files:
-
-- Update `web/.env.example` value for `VITE_WS_API_URL` from placeholder to the deployed WebSocket endpoint.
-- Dispatch implementation in `functions/agent/dispatch.py` can read this endpoint from environment and call `post_to_connection`.
-- The reference schema copy for Dev 1 is stored at `computer-use/agent/schemas/computer-automation.json`.
-
-Full handoff details are in `docs/handoff.md`.
-
-To tear down created resources:
+To tear down:
 
 ```bash
 cd ./infra
@@ -169,6 +171,8 @@ npm run destroy
 
 ## Security Notes
 
-- Never commit AWS credentials, Box credentials, or tokens.
-- Use local AWS profiles (`~/.aws/credentials`) or environment variables.
-- Rotate any key that was shared in plaintext.
+- Never commit AWS credentials.
+- Use `~/.aws/credentials` or environment variables — never hardcode keys.
+- Rotate any key that was previously shared in plaintext.
+- `pyautogui` and the bash tool execute with full local user permissions — only
+  accept tasks from trusted Autnio sessions.

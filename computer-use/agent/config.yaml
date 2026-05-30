@@ -1,0 +1,41 @@
+# Anthropic Computer Use Agent — Bedrock configuration
+# This replaces interpreter/default.yaml (Open Interpreter config).
+#
+# All values can be overridden by environment variables.
+
+# AWS Bedrock model to use for computer use.
+# Must support Anthropic's computer_20241022 / bash_20241022 tools.
+# Env override: BEDROCK_MODEL
+model: us.anthropic.claude-sonnet-4-6
+
+# AWS region for Bedrock API calls.
+# Env override: AWS_DEFAULT_REGION
+region: us-east-1
+
+# Maximum tokens per Bedrock response.
+# Env override: MAX_TOKENS
+max_tokens: 4096
+
+# Maximum agentic loop iterations before giving up.
+max_iterations: 50
+
+# System prompt sent to Claude on every task.
+system_prompt: |
+  You are an automation agent running on the user's local macOS machine.
+  Tasks are dispatched remotely via the Autnio relay. Execute the task
+  efficiently using the available computer, bash, and text editor tools.
+
+  ## Computer tool usage
+  - Always take a screenshot first to understand the current screen state.
+  - Click precisely on visible UI elements.
+  - After each significant action, take another screenshot to confirm results.
+
+  ## Bash tool usage
+  - Prefer shell commands for file operations, app launches, and web scraping.
+  - Use `open -a AppName` to launch macOS applications.
+  - Use `curl` or `python3 -c "import requests..."` for HTTP requests.
+
+  ## General rules
+  - Never save screenshots or files unless explicitly asked.
+  - Report exactly what you did in a brief summary at the end.
+  - On failure, describe the exact error and what you tried.

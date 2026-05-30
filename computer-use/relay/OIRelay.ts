@@ -7,8 +7,7 @@ import type {
   RelayOutboundOutput,
 } from "./types";
 
-const DEFAULT_OI_ENDPOINT = "http://localhost:8000/openai/chat/completions";
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_AGENT_ENDPOINT = "http://localhost:8001/computer-use";
 
 function safeEmit(onEvent: RelayOptions["onEvent"], event: RelayEvent): void {
   if (!onEvent) return;
@@ -22,29 +21,22 @@ function randomTaskId(): string {
   return `task-${Date.now()}`;
 }
 
-function parseSseEvent(eventText: string): string[] {
-  const lines = eventText.split("\n");
-  const chunks: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith("data:")) continue;
-
-    const payload = trimmed.replace(/^data:\s*/, "");
-    if (payload === "[DONE]") continue;
-
-    try {
-      const json = JSON.parse(payload) as {
-        choices?: Array<{ delta?: { content?: string } }>;
-      };
-      const content = json.choices?.[0]?.delta?.content;
-      if (content) chunks.push(content);
-    } catch {
-      // Ignore malformed SSE chunks.
-    }
+/** Parse one NDJSON line from the agent server stream. */
+function parseNdjsonLine(
+  line: string
+): { type: string; data?: string; result?: string; message?: string } | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed) as {
+      type: string;
+      data?: string;
+      result?: string;
+      message?: string;
+    };
+  } catch {
+    return null;
   }
-
-  return chunks;
 }
 
 export class OIRelay {
@@ -128,7 +120,10 @@ export class OIRelay {
   private _scheduleReconnect(): void {
     if (this.options.reconnect === false) {
       safeEmit(this.options.onEvent, { type: "status", status: "closed" });
-      safeEmit(this.options.onEvent, { type: "log", message: "WebSocket closed (reconnect disabled)" });
+      safeEmit(this.options.onEvent, {
+        type: "log",
+        message: "WebSocket closed (reconnect disabled)",
+      });
       return;
     }
     const attempt = ++this._reconnectAttempt;
@@ -137,7 +132,10 @@ export class OIRelay {
     const delay = Math.min(base * Math.pow(1.5, attempt - 1), max);
     const secs = Math.round(delay / 1000);
     safeEmit(this.options.onEvent, { type: "status", status: "reconnecting" });
-    safeEmit(this.options.onEvent, { type: "log", message: `Reconnecting in ${secs}s… (attempt ${attempt})` });
+    safeEmit(this.options.onEvent, {
+      type: "log",
+      message: `Reconnecting in ${secs}s… (attempt ${attempt})`,
+    });
     this._reconnectTimer = setTimeout(() => {
       if (!this._manualDisconnect) this.connect();
     }, delay);
@@ -172,7 +170,9 @@ export class OIRelay {
     );
   }
 
-  private sendMessage(message: RelayOutboundOutput | RelayOutboundDone | RelayOutboundError): void {
+  private sendMessage(
+    message: RelayOutboundOutput | RelayOutboundDone | RelayOutboundError
+  ): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       safeEmit(this.options.onEvent, {
         type: "log",
@@ -190,27 +190,24 @@ export class OIRelay {
     safeEmit(this.options.onEvent, { type: "log", message: `Task started: ${taskId}` });
 
     try {
-      const oiEndpoint = this.options.oiEndpoint ?? DEFAULT_OI_ENDPOINT;
-      const model = this.options.model ?? DEFAULT_MODEL;
-      const response = await fetch(oiEndpoint, {
+      const agentEndpoint =
+        this.options.agentEndpoint ?? DEFAULT_AGENT_ENDPOINT;
+
+      const response = await fetch(agentEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          stream: true,
-          messages: [{ role: "user", content: task }],
-        }),
+        body: JSON.stringify({ task }),
       });
 
       if (!response.ok) {
-        const errorMessage = `Open Interpreter returned ${response.status}`;
+        const errorMessage = `Computer Use agent returned ${response.status}`;
         this.sendMessage({ type: "error", taskId, sessionId, message: errorMessage });
         safeEmit(this.options.onEvent, { type: "taskError", taskId, message: errorMessage });
         return;
       }
 
       if (!response.body) {
-        const errorMessage = "Open Interpreter response body was empty";
+        const errorMessage = "Computer Use agent response body was empty";
         this.sendMessage({ type: "error", taskId, sessionId, message: errorMessage });
         safeEmit(this.options.onEvent, { type: "taskError", taskId, message: errorMessage });
         return;
@@ -218,34 +215,45 @@ export class OIRelay {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = "";
-      let sseBuffer = "";
+      let lineBuffer = "";
+      let finalResult: string | undefined;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        sseBuffer += decoder.decode(value, { stream: true });
-        const events = sseBuffer.split("\n\n");
-        sseBuffer = events.pop() ?? "";
+        lineBuffer += decoder.decode(value, { stream: true });
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop() ?? "";
 
-        for (const eventText of events) {
-          const chunks = parseSseEvent(eventText);
-          for (const chunk of chunks) {
-            fullText += chunk;
-            this.sendMessage({ type: "output", taskId, sessionId, data: chunk });
-            safeEmit(this.options.onEvent, { type: "taskOutput", taskId, chunk });
+        for (const line of lines) {
+          const event = parseNdjsonLine(line);
+          if (!event) continue;
+
+          if (event.type === "output" && event.data != null) {
+            this.sendMessage({ type: "output", taskId, sessionId, data: event.data });
+            safeEmit(this.options.onEvent, { type: "taskOutput", taskId, chunk: event.data });
+          } else if (event.type === "done") {
+            finalResult = event.result;
+          } else if (event.type === "error" && event.message != null) {
+            this.sendMessage({ type: "error", taskId, sessionId, message: event.message });
+            safeEmit(this.options.onEvent, {
+              type: "taskError",
+              taskId,
+              message: event.message,
+            });
+            return;
           }
         }
       }
 
-      this.sendMessage({ type: "done", taskId, sessionId, result: fullText || undefined });
-      safeEmit(this.options.onEvent, { type: "taskDone", taskId, result: fullText || undefined });
+      this.sendMessage({ type: "done", taskId, sessionId, result: finalResult });
+      safeEmit(this.options.onEvent, { type: "taskDone", taskId, result: finalResult });
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "Open Interpreter not running on localhost:8000";
+          : "Computer Use agent not running on localhost:8001";
       this.sendMessage({ type: "error", taskId, sessionId, message });
       safeEmit(this.options.onEvent, { type: "taskError", taskId, message });
     }

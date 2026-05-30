@@ -32,8 +32,8 @@ export class AgentStack extends cdk.Stack {
         sid: 'BedrockModelAccess',
         actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
         resources: [
-          // Orchestration model (Claude 3.5 Sonnet)
-          `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20241022-v2:0`,
+          // Orchestration model (Claude Sonnet 4)
+          `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-sonnet-4-20250514-v1:5`,
           // Vision models (Qwen3-VL-235B + Nemotron Nano 2 VL)
           `arn:aws:bedrock:${this.region}::foundation-model/qwen.qwen3-vl-235b-a22b`,
           `arn:aws:bedrock:${this.region}::foundation-model/nvidia.nemotron-nano-12b-v2`,
