@@ -75,6 +75,7 @@ deploy_lambda() {
   local fn_name="$1"
   local handler="$2"
   local env_vars="${3:-}"
+  local timeout="${4:-30}"   # optional 4th arg; defaults to 30s
 
   if aws lambda get-function --function-name "${fn_name}" --region "${REGION}" >/dev/null 2>&1; then
     aws lambda update-function-code \
@@ -87,7 +88,7 @@ deploy_lambda() {
         --function-name "${fn_name}" \
         --handler "${handler}" \
         --environment "Variables={${env_vars}}" \
-        --timeout 30 \
+        --timeout "${timeout}" \
         --memory-size 256 \
         --region "${REGION}" >/dev/null
       aws lambda wait function-updated --function-name "${fn_name}" --region "${REGION}"
@@ -99,7 +100,7 @@ deploy_lambda() {
       --role "${LAMBDA_ROLE_ARN}"
       --handler "${handler}"
       --zip-file "fileb://${PACKAGE_ZIP}"
-      --timeout 30
+      --timeout "${timeout}"
       --memory-size 256
       --region "${REGION}"
     )
@@ -124,7 +125,7 @@ if [[ -z "${APIFY_TOKEN}" || "${APIFY_TOKEN}" == "None" ]]; then
 fi
 
 deploy_lambda "${PREFIX}-agent-dispatch" "dispatch.handler" ""
-deploy_lambda "${PREFIX}-agent-apify" "apify_scrape.handler" "APIFY_TOKEN=${APIFY_TOKEN},APIFY_PRODUCT_ACTOR=${APIFY_PRODUCT_ACTOR:-XVDTQc4a7MDTqSTMJ},APIFY_REVIEW_ACTOR=${APIFY_REVIEW_ACTOR:-gFtgG31RZJYlphznm}"
+deploy_lambda "${PREFIX}-agent-apify" "apify_scrape.handler" "APIFY_TOKEN=${APIFY_TOKEN},APIFY_PRODUCT_ACTOR=${APIFY_PRODUCT_ACTOR:-XVDTQc4a7MDTqSTMJ},APIFY_REVIEW_ACTOR=${APIFY_REVIEW_ACTOR:-gFtgG31RZJYlphznm}" 180
 deploy_lambda "${PREFIX}-agent-box" "box_ops.handler" ""
 deploy_lambda "${PREFIX}-agent-user" "user_prefs.handler" "DYNAMODB_TABLE=autnio-dev"
 deploy_lambda "${PREFIX}-agent-vision" "vision_action.handler" "ROUTER_FUNCTION_NAME=${ROUTER_FN}"
@@ -216,12 +217,14 @@ if [[ "${EXISTING_AGENT_ID}" == "None" || -z "${EXISTING_AGENT_ID}" ]]; then
 else
   AGENT_ID="${EXISTING_AGENT_ID}"
   echo "==> Updating existing Bedrock Agent: ${AGENT_ID}..."
+  COLLAB="$(aws bedrock-agent get-agent --agent-id "${AGENT_ID}" --region "${REGION}" --query agent.agentCollaboration --output text 2>/dev/null || echo DISABLED)"
   aws bedrock-agent update-agent \
     --agent-id "${AGENT_ID}" \
     --agent-name "${AGENT_NAME}" \
     --foundation-model "${FOUNDATION_MODEL}" \
     --instruction "${INSTRUCTIONS}" \
     --agent-resource-role-arn "${AGENT_ROLE_ARN}" \
+    --agent-collaboration "${COLLAB}" \
     --idle-session-ttl-in-seconds 600 \
     --region "${REGION}" >/dev/null
 fi

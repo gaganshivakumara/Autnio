@@ -5,6 +5,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as path from 'path';
 import { Construct } from 'constructs';
 
@@ -140,6 +141,7 @@ export class FunctionsStack extends cdk.Stack {
       extraEnv?: Record<string, string>,
       extraPolicies?: iam.PolicyStatement[],
       role?: iam.IRole,
+      timeoutSeconds?: number,
     ): lambda.Function => {
       const fn = new lambda.Function(this, id, {
         runtime: lambda.Runtime.NODEJS_18_X,
@@ -147,7 +149,7 @@ export class FunctionsStack extends cdk.Stack {
         code: fnCode,
         environment: { ...commonEnv, ...extraEnv },
         role: role ?? defaultLambdaRole,
-        timeout: cdk.Duration.seconds(30),
+        timeout: cdk.Duration.seconds(timeoutSeconds ?? 30),
         memorySize: 256,
         functionName: `autnio-${appEnv}-${id.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()}`,
         logRetention: logs.RetentionDays.TWO_WEEKS,
@@ -190,12 +192,13 @@ export class FunctionsStack extends cdk.Stack {
     ]);
 
     // Bedrock Agent proxy (POST /chat) — BEDROCK_AGENT_ID/ALIAS injected in bin/autnio.ts
+    // 300s to survive long agent loops that invoke the ~180s Apify scraper
     const chatAgent = mkFn('ChatAgent', 'chat.handler', 'automation', {}, [
       new iam.PolicyStatement({
         actions: ['bedrock:InvokeAgent'],
         resources: [`arn:aws:bedrock:${this.region}:${this.account}:agent-alias/*/*`],
       }),
-    ]);
+    ], undefined, 300);
 
     // ── WebSocket relay Lambdas (Dev 3) ───────────────────────────────────
     const wsConnect = mkFn('WsConnect', 'ws-connect.handler', 'automation');
@@ -214,11 +217,13 @@ export class FunctionsStack extends cdk.Stack {
 
     // Amazon product discovery — searches Amazon for the first result, then
     // scrapes its last-6-months reviews (two Apify actors, demo-scoped).
-    // NOTE: APIFY_API_TOKEN must be supplied (e.g. from the apify-token secret)
-    // for this to actually call Apify.
+    const apifyTokenSecret = secretsmanager.Secret.fromSecretNameV2(
+      this, 'ApifyTokenRef', `/autnio/${appEnv}/apify-token`,
+    );
     const productDiscovery = mkFn('ProductDiscovery', 'product-discovery.handler', 'data', {
       APIFY_PRODUCT_ACTOR: 'XVDTQc4a7MDTqSTMJ',
       APIFY_REVIEW_ACTOR: 'gFtgG31RZJYlphznm',
+      APIFY_API_TOKEN: apifyTokenSecret.secretValue.unsafeUnwrap().toString(),
     });
 
     // ── Files (Dev 2) ─────────────────────────────────────────────────────
