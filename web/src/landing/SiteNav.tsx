@@ -1,22 +1,25 @@
 import { Logo } from "./Primitives";
 
 const NAV_LINKS = [
-  { label: "Chat", href: "#chat" },
-  { label: "Vision Feed", href: "#vision-feed" },
-  { label: "Product Discovery", href: "#product-discovery" },
-  { label: "Relay", href: "#relay" },
+  { label: "Chat", hash: "#/chat" },
+  { label: "Vision Feed", hash: "#/vision" },
+  { label: "Product Discovery", hash: "#/product-discovery" },
+  { label: "Relay", hash: "#/relay" },
 ];
 
-export function SiteNav() {
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    e.preventDefault();
-    document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
+export function SiteNav({ light = false }: { light?: boolean }) {
+  const navigate = (hash: string) => {
+    window.location.hash = hash;
+    window.scrollTo(0, 0);
   };
+
+  const textColor = light ? "rgba(255,255,255,0.8)" : "var(--ink-2)";
+  const hoverColor = light ? "#ffffff" : "var(--ink-1)";
 
   return (
     <nav
       style={{
-        position: "fixed",
+        position: "absolute",
         top: 0,
         left: 0,
         right: 0,
@@ -26,35 +29,38 @@ export function SiteNav() {
         justifyContent: "space-between",
         padding: "0 clamp(1.5rem, 5vw, 4rem)",
         height: 56,
-        background: "rgba(240,246,240,0.72)",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-        borderBottom: "1px solid var(--glass-stroke)",
       }}
     >
-      <Logo />
+      <button
+        onClick={() => navigate("#/")}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+      >
+        <Logo light={light} />
+      </button>
 
       <div style={{ display: "flex", alignItems: "center", gap: "clamp(1rem, 3vw, 2.5rem)" }}>
-        {NAV_LINKS.map(({ label, href }) => (
-          <a
-            key={href}
-            href={href}
-            onClick={(e) => handleClick(e, href)}
+        {NAV_LINKS.map(({ label, hash }) => (
+          <button
+            key={hash}
+            onClick={() => navigate(hash)}
             style={{
+              background: "none",
+              border: "none",
+              padding: 0,
               fontFamily: "var(--font-sans)",
               fontWeight: 400,
               fontSize: "0.875rem",
               letterSpacing: "0.01em",
-              color: "var(--ink-2)",
-              textDecoration: "none",
-              transition: "color 0.15s",
+              color: textColor,
+              cursor: "pointer",
               whiteSpace: "nowrap",
+              transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ink-1)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ink-2)"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = hoverColor; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = textColor; }}
           >
             {label}
-          </a>
+          </button>
         ))}
       </div>
     </nav>

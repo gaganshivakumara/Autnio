@@ -1,36 +1,43 @@
 // Halo — root app with hash-based routing.
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LandingPage } from "./landing/LandingPage";
 import { Dashboard } from "./dashboard/Dashboard";
+import { ChatPage } from "./pages/ChatPage";
+import { VisionPage } from "./pages/VisionPage";
+import { ProductDiscoveryPage } from "./pages/ProductDiscoveryPage";
+import { RelayPage } from "./pages/RelayPage";
 
-type Route = "landing" | "app";
+type Route = "landing" | "app" | "chat" | "vision" | "product-discovery" | "relay";
 
 function getRoute(): Route {
-  return window.location.hash === "#/app" ? "app" : "landing";
+  const h = window.location.hash;
+  if (h === "#/app") return "app";
+  if (h === "#/chat") return "chat";
+  if (h === "#/vision") return "vision";
+  if (h === "#/product-discovery") return "product-discovery";
+  if (h === "#/relay") return "relay";
+  return "landing";
 }
 
 export function App(): JSX.Element {
   const [route, setRoute] = useState<Route>(getRoute);
 
   useEffect(() => {
-    const onHash = () => setRoute(getRoute());
+    const onHash = () => {
+      setRoute(getRoute());
+      window.scrollTo(0, 0);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const goToApp = useCallback(() => {
-    window.location.hash = "#/app";
-    window.scrollTo(0, 0);
-  }, []);
+  const goToLanding = () => { window.location.hash = "#/"; };
 
-  const goToLanding = useCallback(() => {
-    window.location.hash = "#/";
-    window.scrollTo(0, 0);
-  }, []);
+  if (route === "app") return <Dashboard onBack={goToLanding} />;
+  if (route === "chat") return <ChatPage />;
+  if (route === "vision") return <VisionPage />;
+  if (route === "product-discovery") return <ProductDiscoveryPage />;
+  if (route === "relay") return <RelayPage />;
 
-  if (route === "app") {
-    return <Dashboard onBack={goToLanding} />;
-  }
-
-  return <LandingPage onSignIn={goToApp} />;
+  return <LandingPage onSignIn={() => { window.location.hash = "#/app"; }} />;
 }
