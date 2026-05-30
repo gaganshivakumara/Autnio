@@ -166,78 +166,23 @@ export function Statement() {
 }
 
 export function Footer() {
-  const cols: Record<string, string[]> = {
-    Product: ["Vision", "Automation", "Voice", "Memory"],
-    Company: ["About", "Careers", "Press", "Contact"],
-    Resources: ["Docs", "Access", "Status", "Privacy"],
-  };
-
   return (
     <footer style={{ background: "var(--sky-low)", padding: "clamp(3.5rem,8vh,6rem) clamp(1.5rem,6vw,6rem) 3rem" }}>
-      <div
-        style={{
-          maxWidth: 1280,
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1.4fr repeat(3, 0.8fr)",
-          gap: "2rem",
-        }}
-        className="footer-grid"
-      >
-        <div>
-          <Logo />
-          <p
-            style={{
-              fontFamily: "var(--font-sans)",
-              fontWeight: 400,
-              fontSize: "0.875rem",
-              lineHeight: 1.5,
-              color: "var(--ink-3)",
-              maxWidth: "30ch",
-              marginTop: "1.2rem",
-            }}
-          >
-            Your AI companion for the digital and physical world.
-          </p>
-        </div>
-        {Object.entries(cols).map(([head, items]) => (
-          <div key={head}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontWeight: 400,
-                fontSize: "0.66rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.32em",
-                color: "var(--ink-3)",
-                marginBottom: "1.1rem",
-              }}
-            >
-              {head}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
-              {items.map((it) => (
-                <a
-                  key={it}
-                  href="#"
-                  style={{
-                    fontFamily: "var(--font-sans)",
-                    fontWeight: 400,
-                    fontSize: "0.92rem",
-                    lineHeight: 1.65,
-                    textDecoration: "none",
-                    color: "var(--ink-2)",
-                    transition: "color var(--dur-hover) var(--ease-soft)",
-                  }}
-                  onMouseEnter={(e) => { (e.target as HTMLElement).style.color = "var(--green-moss)"; }}
-                  onMouseLeave={(e) => { (e.target as HTMLElement).style.color = "var(--ink-2)"; }}
-                >
-                  {it}
-                </a>
-              ))}
-            </div>
-          </div>
-        ))}
+      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <Logo />
+        <p
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontWeight: 400,
+            fontSize: "0.875rem",
+            lineHeight: 1.5,
+            color: "var(--ink-3)",
+            maxWidth: "30ch",
+            marginTop: "1.2rem",
+          }}
+        >
+          Your AI companion for the digital and physical world.
+        </p>
       </div>
       <div
         style={{
