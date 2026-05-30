@@ -14,6 +14,7 @@ const { LambdaClient, DeleteFunctionCommand } = lambdaPkg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const outputsPath = path.join(__dirname, "deployment-outputs.json");
+const statePath = path.join(__dirname, "deployment-state.json");
 
 if (!fs.existsSync(outputsPath)) {
   console.error("deployment-outputs.json not found. Nothing to destroy.");
@@ -78,6 +79,9 @@ async function main() {
     );
     await safe(() => iam.send(new DeleteRoleCommand({ RoleName: outputs.LAMBDA_ROLE_NAME })));
   }
+
+  if (fs.existsSync(outputsPath)) fs.unlinkSync(outputsPath);
+  if (fs.existsSync(statePath)) fs.unlinkSync(statePath);
 
   console.log("Destroy complete.");
 }

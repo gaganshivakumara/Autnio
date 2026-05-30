@@ -106,6 +106,20 @@ Do not use `GET /chat` here; that is not the built-in OpenAI-compatible contract
 
 5. Open the printed URL and run a simulated task.
 
+## macOS Local Install
+
+Bootstrap all local prerequisites:
+
+```bash
+./scripts/macos-bootstrap.sh
+```
+
+Optional: auto-start Open Interpreter at login using `launchd`:
+
+```bash
+./scripts/setup-launchd.sh
+```
+
 ## AWS Deployment (Computer-Use Only, no CDK)
 
 `infra/provision.mjs` provisions directly through AWS APIs:

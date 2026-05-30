@@ -114,6 +114,17 @@ export class OIRelay {
     return true;
   }
 
+  simulate(task: string): void {
+    const taskId = randomTaskId();
+    void this.handleTask({
+      type: "task",
+      taskId,
+      task,
+      userId: "demo-user",
+      sessionId: "demo-session",
+    });
+  }
+
   private isTaskMessage(message: unknown): message is RelayInboundTask {
     if (!message || typeof message !== "object") return false;
     const record = message as Partial<RelayInboundTask>;
@@ -135,7 +146,7 @@ export class OIRelay {
     this.ws.send(JSON.stringify(message));
   }
 
-  private async handleTask(taskMessage: RelayInboundTask): Promise<void> {
+  async handleTask(taskMessage: RelayInboundTask): Promise<void> {
     const taskId = taskMessage.taskId || randomTaskId();
     const { sessionId, task } = taskMessage;
     safeEmit(this.options.onEvent, { type: "taskStarted", taskId });

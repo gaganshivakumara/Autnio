@@ -9,15 +9,24 @@ function randomTaskId(): string {
     : `task-${Date.now()}`;
 }
 
+function queryParam(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name);
+}
+
 export function App(): JSX.Element {
-  const [wsEndpoint, setWsEndpoint] = useState("ws://127.0.0.1:8765");
-  const [idToken, setIdToken] = useState("demo-token");
+  const [wsEndpoint, setWsEndpoint] = useState(
+    queryParam("wsEndpoint") ?? "wss://3cil79jtm9.execute-api.us-east-1.amazonaws.com/dev",
+  );
+  const [idToken, setIdToken] = useState(queryParam("idToken") ?? "demo-token");
   const [taskText, setTaskText] = useState("Say hello from Open Interpreter.");
   const [oiStatus, setOiStatus] = useState<"unknown" | "online" | "offline">("unknown");
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [logs, setLogs] = useState<string[]>([]);
 
   const relayRef = useRef<OIRelay | null>(null);
+  const appMode = queryParam("appMode") ?? "web";
 
   const canConnect = useMemo(() => relayStatus === "idle" || relayStatus === "closed" || relayStatus === "error", [relayStatus]);
 
@@ -71,20 +80,17 @@ export function App(): JSX.Element {
       appendLog("Cannot simulate task: relay not connected");
       return;
     }
-    const sent = relayRef.current.sendControlMessage({
-      type: "simulateTask",
-      taskId: randomTaskId(),
-      task: taskText,
-      userId: "demo-user",
-      sessionId: "demo-session",
-    });
-    if (!sent) appendLog("simulateTask was not sent (socket closed)");
+    relayRef.current.simulate(taskText);
   };
 
   return (
     <main className="container">
       <h1>Autnio Computer Use Relay Demo</h1>
-      <p className="subtitle">Standalone relay UI for local Open Interpreter testing.</p>
+      <p className="subtitle">
+        {appMode === "macos"
+          ? "App mode relay UI (embedded in macOS SwiftUI wrapper)."
+          : "Standalone relay UI for local Open Interpreter testing."}
+      </p>
 
       <section className="card">
         <label>
