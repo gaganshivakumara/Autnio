@@ -23,3 +23,9 @@ Thumbs.db
 .env
 .env.*
 *.pem
+
+# Node / Python generated artifacts
+node_modules/
+*.tsbuildinfo
+__pycache__/
+*.pyc
