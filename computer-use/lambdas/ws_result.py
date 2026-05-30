@@ -16,20 +16,22 @@ def _parse_body(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _mark_running(task_id: str, chunk: str) -> None:
+    """Append output chunk to a list in DynamoDB (list_append is the only
+    safe way to grow a string-like field — DynamoDB SET + is numeric-only)."""
     table = tasks_table()
     table.update_item(
         Key={"taskId": task_id},
         UpdateExpression=(
             "SET #status = :status, "
             "updatedAt = :updatedAt, "
-            "partialOutput = if_not_exists(partialOutput, :empty) + :chunk"
+            "partialOutput = list_append(if_not_exists(partialOutput, :empty), :chunk)"
         ),
         ExpressionAttributeNames={"#status": "status"},
         ExpressionAttributeValues={
             ":status": "running",
             ":updatedAt": now_epoch(),
-            ":empty": "",
-            ":chunk": chunk,
+            ":empty": [],
+            ":chunk": [chunk],
         },
     )
 
@@ -38,8 +40,8 @@ def _mark_done(task_id: str, result_text: str | None) -> None:
     table = tasks_table()
     table.update_item(
         Key={"taskId": task_id},
-        UpdateExpression="SET #status = :status, result = :result, updatedAt = :updatedAt",
-        ExpressionAttributeNames={"#status": "status"},
+        UpdateExpression="SET #status = :status, #result = :result, updatedAt = :updatedAt",
+        ExpressionAttributeNames={"#status": "status", "#result": "result"},
         ExpressionAttributeValues={
             ":status": "complete",
             ":result": result_text or "",
@@ -52,8 +54,8 @@ def _mark_error(task_id: str, message: str) -> None:
     table = tasks_table()
     table.update_item(
         Key={"taskId": task_id},
-        UpdateExpression="SET #status = :status, result = :result, updatedAt = :updatedAt",
-        ExpressionAttributeNames={"#status": "status"},
+        UpdateExpression="SET #status = :status, #result = :result, updatedAt = :updatedAt",
+        ExpressionAttributeNames={"#status": "status", "#result": "result"},
         ExpressionAttributeValues={
             ":status": "failed",
             ":result": message,

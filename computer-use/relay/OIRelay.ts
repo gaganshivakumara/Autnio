@@ -50,29 +50,39 @@ function parseSseEvent(eventText: string): string[] {
 export class OIRelay {
   private ws: WebSocket | null = null;
   private readonly options: RelayOptions;
+  private _manualDisconnect = false;
+  private _reconnectAttempt = 0;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: RelayOptions) {
     this.options = options;
   }
 
   connect(): void {
+    this._manualDisconnect = false;
+    this._cancelReconnect();
     safeEmit(this.options.onEvent, { type: "status", status: "connecting" });
     const url = `${this.options.wsEndpoint}?token=${encodeURIComponent(this.options.idToken)}`;
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
+      this._reconnectAttempt = 0;
       safeEmit(this.options.onEvent, { type: "status", status: "connected" });
       safeEmit(this.options.onEvent, { type: "log", message: "WebSocket connected" });
     };
 
     this.ws.onclose = () => {
-      safeEmit(this.options.onEvent, { type: "status", status: "closed" });
-      safeEmit(this.options.onEvent, { type: "log", message: "WebSocket closed" });
+      if (this._manualDisconnect) {
+        safeEmit(this.options.onEvent, { type: "status", status: "closed" });
+        safeEmit(this.options.onEvent, { type: "log", message: "WebSocket closed" });
+      } else {
+        this._scheduleReconnect();
+      }
     };
 
     this.ws.onerror = () => {
-      safeEmit(this.options.onEvent, { type: "status", status: "error" });
       safeEmit(this.options.onEvent, { type: "log", message: "WebSocket error" });
+      // onclose always fires after onerror — reconnect is handled there.
     };
 
     this.ws.onmessage = async (event: MessageEvent<string>) => {
@@ -100,10 +110,37 @@ export class OIRelay {
   }
 
   disconnect(): void {
+    this._manualDisconnect = true;
+    this._cancelReconnect();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
+  }
+
+  private _cancelReconnect(): void {
+    if (this._reconnectTimer !== null) {
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = null;
+    }
+  }
+
+  private _scheduleReconnect(): void {
+    if (this.options.reconnect === false) {
+      safeEmit(this.options.onEvent, { type: "status", status: "closed" });
+      safeEmit(this.options.onEvent, { type: "log", message: "WebSocket closed (reconnect disabled)" });
+      return;
+    }
+    const attempt = ++this._reconnectAttempt;
+    const base = this.options.reconnectDelay ?? 2000;
+    const max = this.options.reconnectMaxDelay ?? 30000;
+    const delay = Math.min(base * Math.pow(1.5, attempt - 1), max);
+    const secs = Math.round(delay / 1000);
+    safeEmit(this.options.onEvent, { type: "status", status: "reconnecting" });
+    safeEmit(this.options.onEvent, { type: "log", message: `Reconnecting in ${secs}s… (attempt ${attempt})` });
+    this._reconnectTimer = setTimeout(() => {
+      if (!this._manualDisconnect) this.connect();
+    }, delay);
   }
 
   sendControlMessage(message: Record<string, unknown>): boolean {

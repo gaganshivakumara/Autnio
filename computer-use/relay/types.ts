@@ -33,7 +33,7 @@ export type RelayOutboundMessage =
   | RelayOutboundError;
 
 export type RelayEvent =
-  | { type: "status"; status: "connecting" | "connected" | "closed" | "error" }
+  | { type: "status"; status: "connecting" | "connected" | "closed" | "error" | "reconnecting" }
   | { type: "log"; message: string }
   | { type: "taskStarted"; taskId: string }
   | { type: "taskOutput"; taskId: string; chunk: string }
@@ -45,5 +45,11 @@ export type RelayOptions = {
   idToken: string;
   oiEndpoint?: string;
   model?: string;
+  /** Auto-reconnect on unexpected close (default: true) */
+  reconnect?: boolean;
+  /** Initial delay in ms before first retry (default: 2000) */
+  reconnectDelay?: number;
+  /** Maximum delay between retries in ms (default: 30000) */
+  reconnectMaxDelay?: number;
   onEvent?: (event: RelayEvent) => void;
 };
