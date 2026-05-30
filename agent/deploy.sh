@@ -7,7 +7,7 @@ PREFIX="autnio-dev"
 AGENT_NAME="${PREFIX}-agent"
 AGENT_ROLE="${PREFIX}-bedrock-agent-role"
 LAMBDA_ROLE="${PREFIX}-agent-lambda-role"
-FOUNDATION_MODEL="amazon.nova-pro-v1:0"
+FOUNDATION_MODEL="us.anthropic.claude-sonnet-4-6"
 ROUTER_FN="${PREFIX}-vision-router"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
