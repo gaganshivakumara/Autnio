@@ -8,6 +8,6 @@
 // Env vars: DYNAMODB_TABLE
 // IAM: dynamodb:DeleteItem granted via table.grantReadWriteData in FunctionsStack
 
-exports.handler = async (event) => {
+export const handler = async (event) => {
   return { statusCode: 200 };
 };

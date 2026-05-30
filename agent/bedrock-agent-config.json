@@ -1,0 +1,43 @@
+{
+  "agentName": "autnio-agent",
+  "description": "Autnio personal AI agent — digital and physical world automation",
+  "foundationModel": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  "idleSessionTTLInSeconds": 3600,
+  "instructionFile": "agent/instructions.txt",
+  "actionGroups": [
+    {
+      "actionGroupName": "computer-automation",
+      "description": "Automate computer tasks: send emails, schedule meetings, fill forms, open applications",
+      "apiSchemaS3Uri": "s3://{SCHEMA_BUCKET}/agent/schemas/computer-automation.yaml",
+      "lambdaArn": "{LAMBDA_ARN_COMPUTER_AUTOMATION}"
+    },
+    {
+      "actionGroupName": "file-management",
+      "description": "Manage files in Box: upload, read, share, search",
+      "apiSchemaS3Uri": "s3://{SCHEMA_BUCKET}/agent/schemas/file-management.yaml",
+      "lambdaArn": "{LAMBDA_ARN_FILE_MANAGEMENT}"
+    },
+    {
+      "actionGroupName": "web-data",
+      "description": "Web scraping: job board search, research, general data extraction via Apify",
+      "apiSchemaS3Uri": "s3://{SCHEMA_BUCKET}/agent/schemas/web-data.yaml",
+      "lambdaArn": "{LAMBDA_ARN_WEB_DATA}"
+    },
+    {
+      "actionGroupName": "user-memory",
+      "description": "Read and write user preferences, routines, and task history in DynamoDB",
+      "apiSchemaS3Uri": "s3://{SCHEMA_BUCKET}/agent/schemas/user-memory.yaml",
+      "lambdaArn": "{LAMBDA_ARN_USER_MEMORY}"
+    },
+    {
+      "actionGroupName": "vision",
+      "description": "Computer vision: scene description, OCR, navigation assistance (Dev 4 Lambdas)",
+      "apiSchemaS3Uri": "s3://{SCHEMA_BUCKET}/agent/schemas/vision.yaml",
+      "lambdaArn": "{LAMBDA_ARN_VISION}"
+    }
+  ],
+  "notes": {
+    "SCHEMA_BUCKET": "S3 bucket where schema YAMLs are uploaded — set by Dev 3 infra",
+    "LAMBDA_ARN_*": "Lambda ARNs output by Dev 2 CDK/SAM deployment"
+  }
+}

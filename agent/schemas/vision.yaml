@@ -1,0 +1,104 @@
+openapi: "3.0.0"
+info:
+  title: vision
+  version: "1.0"
+  description: Computer vision — scene description, OCR, and navigation (Dev 4 Lambdas)
+paths:
+  /describe-scene:
+    post:
+      summary: Describe what is visible in an image or camera frame
+      operationId: describeScene
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [imageSource, sourceType]
+              properties:
+                imageSource:
+                  type: string
+                  description: S3 URI, Box file ID, or base64-encoded image data
+                sourceType:
+                  type: string
+                  description: How to interpret imageSource
+                  enum: [s3, box, base64]
+                context:
+                  type: string
+                  description: Optional hint about what the user wants to understand
+      responses:
+        "200":
+          description: Scene description returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /read-text:
+    post:
+      summary: Extract text from an image using OCR
+      operationId: readText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [imageSource, sourceType]
+              properties:
+                imageSource:
+                  type: string
+                  description: S3 URI, Box file ID, or base64-encoded image data
+                sourceType:
+                  type: string
+                  description: How to interpret imageSource
+                  enum: [s3, box, base64]
+      responses:
+        "200":
+          description: Extracted text returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /navigate:
+    post:
+      summary: Provide turn-by-turn navigation guidance
+      operationId: navigate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [destination]
+              properties:
+                destination:
+                  type: string
+                  description: Target address or landmark
+                currentLocation:
+                  type: string
+                  description: Current position as "lat,lon" or address string
+                imageSource:
+                  type: string
+                  description: Optional camera frame for environmental awareness
+                sourceType:
+                  type: string
+                  enum: [s3, box, base64]
+      responses:
+        "200":
+          description: Navigation steps returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        data:
+          type: object

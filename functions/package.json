@@ -1,0 +1,17 @@
+{
+  "name": "autnio-functions",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.600.0",
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.600.0",
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/client-ses": "^3.600.0",
+    "@aws-sdk/client-ssm": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "apify-client": "^2.9.3",
+    "aws-jwt-verify": "^4.0.1",
+    "box-node-sdk": "^3.4.0"
+  }
+}

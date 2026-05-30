@@ -13,7 +13,7 @@ ROUTER_FN="${PREFIX}-vision-router"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 AGENT_DIR="${REPO_ROOT}/agent"
-FN_DIR="${REPO_ROOT}/functions/agent"
+FN_DIR="${AGENT_DIR}/functions"
 BUILD_DIR="$(mktemp -d)"
 PACKAGE_ZIP="${BUILD_DIR}/agent-lambda.zip"
 
@@ -267,11 +267,11 @@ add_action_group() {
 }
 
 echo "==> Registering action groups..."
-add_action_group "computer-automation" "${DISPATCH_ARN}" "${AGENT_DIR}/schemas/computer-automation.json"
-add_action_group "web-research" "${APIFY_ARN}" "${AGENT_DIR}/schemas/web-research.json"
-add_action_group "file-management" "${BOX_ARN}" "${AGENT_DIR}/schemas/file-management.json"
-add_action_group "user-preferences" "${USER_ARN}" "${AGENT_DIR}/schemas/user-preferences.json"
-add_action_group "vision" "${VISION_ARN}" "${AGENT_DIR}/schemas/vision.json"
+add_action_group "computer-automation" "${DISPATCH_ARN}" "${AGENT_DIR}/schemas/computer-automation.yaml"
+add_action_group "web-data" "${APIFY_ARN}" "${AGENT_DIR}/schemas/web-data.yaml"
+add_action_group "file-management" "${BOX_ARN}" "${AGENT_DIR}/schemas/file-management.yaml"
+add_action_group "user-memory" "${USER_ARN}" "${AGENT_DIR}/schemas/user-memory.yaml"
+add_action_group "vision" "${VISION_ARN}" "${AGENT_DIR}/schemas/vision.yaml"
 
 echo "==> Preparing agent..."
 aws bedrock-agent prepare-agent \
