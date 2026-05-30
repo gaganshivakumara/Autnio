@@ -51,7 +51,6 @@ function Grass() {
 
 const NAV_LINKS = [
   { label: "Product Discovery", hash: "#/product-discovery" },
-  { label: "Relay", hash: "#/relay" },
 ];
 
 function NavBar() {

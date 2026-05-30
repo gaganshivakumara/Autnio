@@ -25,14 +25,14 @@ export function ProductChat({
   idToken,
   userId,
   onCaptureCommand,
+  placeholder,
 }: {
   sessionId?: string;
   onSessionId?: (id: string) => void;
   idToken?: string;
   userId?: string;
-  // Called when the user speaks a capture phrase ("take a picture") — the page
-  // fires the camera shutter instead of sending the phrase to the agent.
   onCaptureCommand?: () => void;
+  placeholder?: string;
 }): JSX.Element {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -162,7 +162,7 @@ export function ProductChat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
-          placeholder="Ask about this product…"
+          placeholder={placeholder ?? "Ask about this product…"}
           disabled={state === "thinking" || state === "speaking"}
           style={{ flex: 1 }}
         />
