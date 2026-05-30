@@ -17,6 +17,10 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env
 const TABLE = process.env.DYNAMODB_TABLE ?? 'autnio-main';
 
 export const handler = async (event) => {
+  // Handle CORS preflight — Function URL doesn't auto-handle OPTIONS
+  const method = event.requestContext?.http?.method ?? event.httpMethod;
+  if (method === 'OPTIONS') return respond(200, {});
+
   try {
     const body = typeof event.body === 'string' ? JSON.parse(event.body) : (event.body ?? event);
     const { sessionId } = body;
@@ -85,6 +89,7 @@ function respond(statusCode, body) {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+      'Access-Control-Allow-Methods': 'POST,OPTIONS',
     },
     body: JSON.stringify(body),
   };
