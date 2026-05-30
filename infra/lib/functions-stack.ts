@@ -27,6 +27,7 @@ export interface ExportedFunctions {
   apifyJobs: lambda.Function;
   apifyResearch: lambda.Function;
   apifyRun: lambda.Function;
+  productDiscovery: lambda.Function;
   // Dev 2 — files
   boxRead: lambda.Function;
   boxWrite: lambda.Function;
@@ -211,6 +212,13 @@ export class FunctionsStack extends cdk.Stack {
     const apifyResearch = mkFn('ApifyResearch', 'apify-research.handler', 'data');
     const apifyRun = mkFn('ApifyRun', 'apify-run.handler', 'data');
 
+    // Amazon product discovery — searches Amazon and scrapes the first result
+    // via the Apify MCP server (demo-scoped; last-6-months reviews only).
+    const productDiscovery = mkFn('ProductDiscovery', 'product-discovery.handler', 'data', {
+      APIFY_MCP_URL: 'https://mcp.apify.com/mcp',
+      APIFY_PRODUCT_ACTOR: 'junglee/amazon-crawler',
+    });
+
     // ── Files (Dev 2) ─────────────────────────────────────────────────────
     const boxRead = mkFn('BoxRead', 'box-read.handler', 'files');
     const boxWrite = mkFn('BoxWrite', 'box-write.handler', 'files');
@@ -265,7 +273,7 @@ export class FunctionsStack extends cdk.Stack {
     this.exportedFunctions = {
       sendEmail, fillForm, openApplication, scheduleMeeting,
       triggerApify, checkApifyRun, dispatchOI,
-      apifyJobs, apifyResearch, apifyRun,
+      apifyJobs, apifyResearch, apifyRun, productDiscovery,
       chatAgent, wsConnect, wsDisconnect, wsDefault,
       boxRead, boxWrite, boxSearch, boxShare, boxUpload,
       getProfile, updateProfile, logTask, saveRoutine,
@@ -285,6 +293,7 @@ export class FunctionsStack extends cdk.Stack {
       ['ApifyJobsArn', apifyJobs],
       ['ApifyResearchArn', apifyResearch],
       ['ApifyRunArn', apifyRun],
+      ['ProductDiscoveryArn', productDiscovery],
       ['ChatAgentArn', chatAgent],
       ['BoxReadArn', boxRead],
       ['BoxWriteArn', boxWrite],
