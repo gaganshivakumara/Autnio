@@ -1,22 +1,39 @@
 // Halo — capability cards, atmospheric statement, and footer.
-import { GlassCard, Logo } from "./Primitives";
+import { Logo } from "./Primitives";
+import { Stories } from "@/components/ui/stories-carousel";
 
-const CAPABILITIES = [
+const CAPABILITY_STORIES = [
   {
+    id: "vision",
+    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=720&q=80&auto=format&fit=crop",
+    label: "01 — Vision",
     title: "Real-world vision",
     body: "Continuous scene understanding, object grounding, and sign reading — narrated softly, in real time.",
+    avatarFallback: "V",
   },
   {
+    id: "automation",
+    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=720&q=80&auto=format&fit=crop",
+    label: "02 — Automation",
     title: "Computer automation",
     body: "Describe the outcome. halo plans the steps and runs them on your machine — forms, apps, workflows.",
+    avatarFallback: "A",
   },
   {
+    id: "voice",
+    image: "https://images.unsplash.com/photo-1590736969955-71cc94901144?w=720&q=80&auto=format&fit=crop",
+    label: "03 — Voice",
     title: "Voice presence",
     body: "Speak naturally from any device. halo listens, reasons, and replies in a calm, neural voice.",
+    avatarFallback: "P",
   },
   {
+    id: "memory",
+    image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=720&q=80&auto=format&fit=crop",
+    label: "04 — Memory",
     title: "Files & memory",
     body: "Your documents, routines, and preferences travel with you, quietly organized and always in context.",
+    avatarFallback: "M",
   },
 ];
 
@@ -57,56 +74,7 @@ export function Capabilities() {
       >
         One presence, attentive to both of your worlds.
       </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: "1.25rem",
-        }}
-      >
-        {CAPABILITIES.map((c, i) => (
-          <GlassCard key={c.title} style={{ display: "flex", flexDirection: "column", gap: "0.9rem", minHeight: 220 }}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontWeight: 400,
-                fontSize: "0.75rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.32em",
-                color: "var(--ink-3)",
-                marginBottom: "auto",
-              }}
-            >
-              {String(i + 1).padStart(2, "0")}
-            </div>
-            <h3
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontWeight: 400,
-                fontSize: "1.5rem",
-                lineHeight: 1.2,
-                letterSpacing: "-0.005em",
-                color: "var(--ink-1)",
-                margin: 0,
-              }}
-            >
-              {c.title}
-            </h3>
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontWeight: 400,
-                fontSize: "0.98rem",
-                lineHeight: 1.65,
-                color: "var(--ink-2)",
-                margin: 0,
-              }}
-            >
-              {c.body}
-            </p>
-          </GlassCard>
-        ))}
-      </div>
+      <Stories stories={CAPABILITY_STORIES} />
     </section>
   );
 }

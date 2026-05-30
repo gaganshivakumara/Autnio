@@ -79,8 +79,8 @@ interface MorphPanelProps {
   isLoading?: boolean;
 }
 
-const FORM_WIDTH = 360;
-const FORM_HEIGHT = 200;
+const FORM_WIDTH = 520;
+const FORM_HEIGHT = 240;
 
 export function MorphPanel({ onSend, isLoading = false }: MorphPanelProps) {
   const wrapperRef = React.useRef<HTMLDivElement>(null);

@@ -28,11 +28,12 @@ export function ChatInterface({ idToken }: { idToken?: string }): JSX.Element {
   }, [idToken]);
 
   return (
-    <section className="card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
       <MorphPanel onSend={handleSend} isLoading={loading} />
       {response && (
         <pre style={{
           width: "100%",
+          maxWidth: 520,
           background: "var(--ink-1)",
           borderRadius: "var(--r-md)",
           color: "var(--green-fog)",
@@ -48,6 +49,6 @@ export function ChatInterface({ idToken }: { idToken?: string }): JSX.Element {
           {response}
         </pre>
       )}
-    </section>
+    </div>
   );
 }
