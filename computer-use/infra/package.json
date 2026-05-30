@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "deploy": "node ./provision.mjs",
-    "destroy": "node ./destroy.mjs"
+    "destroy": "node ./destroy.mjs",
+    "test-dispatch": "node ./deploy-and-invoke-dispatch-test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-apigatewaymanagementapi": "^3.822.0",

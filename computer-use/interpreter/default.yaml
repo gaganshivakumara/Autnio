@@ -1,3 +1,4 @@
+version: 0.2.5
 llm:
   model: openai/anthropic.claude-3-5-sonnet-20241022-v2:0
   api_base: https://bedrock-mantle.us-east-1.api.aws/v1
