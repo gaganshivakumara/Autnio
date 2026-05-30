@@ -1,19 +1,17 @@
-import { useState } from "react";
-import SearchComponent from "@/components/ui/animated-glowing-search-bar";
+import { useState, useCallback } from "react";
+import { MorphPanel } from "@/components/ui/ai-input";
 
 const restApiUrl = import.meta.env.VITE_REST_API_URL as string;
 
 export function ChatInterface({ idToken }: { idToken?: string }): JSX.Element {
-  const [message, setMessage] = useState("");
-  const [responseText, setResponseText] = useState("");
+  const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const sendMessage = async (): Promise<void> => {
-    if (!message.trim() || loading) return;
+  const handleSend = useCallback(async (message: string): Promise<void> => {
     setLoading(true);
-    setResponseText("");
+    setResponse("");
     try {
-      const response = await fetch(`${restApiUrl}/chat`, {
+      const res = await fetch(`${restApiUrl}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -21,32 +19,35 @@ export function ChatInterface({ idToken }: { idToken?: string }): JSX.Element {
         },
         body: JSON.stringify({ message }),
       });
-      const body = await response.text();
-      setResponseText(body || `HTTP ${response.status}`);
-      setMessage("");
-    } catch (error) {
-      setResponseText(error instanceof Error ? error.message : "Chat request failed");
+      setResponse(await res.text() || `HTTP ${res.status}`);
+    } catch (e) {
+      setResponse(e instanceof Error ? e.message : "Chat request failed");
     } finally {
       setLoading(false);
     }
-  };
+  }, [idToken]);
 
   return (
-    <section className="card">
-      <h2>Chat</h2>
-      <div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0 0.25rem" }}>
-        <SearchComponent
-          value={message}
-          onChange={setMessage}
-          onSubmit={sendMessage}
-          placeholder="Ask Autnio..."
-          loading={loading}
-        />
-      </div>
-      <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--ink-4)", margin: "0.5rem 0 0", fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }}>
-        {loading ? "thinking..." : "press enter to send"}
-      </p>
-      <pre>{responseText || "Waiting for /chat endpoint."}</pre>
+    <section className="card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+      <MorphPanel onSend={handleSend} isLoading={loading} />
+      {response && (
+        <pre style={{
+          width: "100%",
+          background: "var(--ink-1)",
+          borderRadius: "var(--r-md)",
+          color: "var(--green-fog)",
+          overflow: "auto",
+          padding: "1rem 1.25rem",
+          whiteSpace: "pre-wrap",
+          fontFamily: "var(--font-mono)",
+          fontSize: "0.82rem",
+          lineHeight: 1.6,
+          border: "1px solid rgba(143,191,143,0.12)",
+          margin: 0,
+        }}>
+          {response}
+        </pre>
+      )}
     </section>
   );
 }
