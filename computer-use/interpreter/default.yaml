@@ -1,7 +1,6 @@
 version: 0.2.5
 llm:
-  model: openai/anthropic.claude-3-5-sonnet-20241022-v2:0
-  api_base: https://bedrock-mantle.us-east-1.api.aws/v1
-  api_key: REPLACE_WITH_BEDROCK_API_KEY
+  model: bedrock/us.anthropic.claude-sonnet-4-6
+  aws_region_name: us-east-1
 auto_run: true
 safe_mode: off
