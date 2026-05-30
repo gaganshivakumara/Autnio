@@ -49,7 +49,19 @@ function Grass() {
   );
 }
 
+const NAV_LINKS = [
+  { label: "Chat", hash: "#/chat" },
+  { label: "Vision Feed", hash: "#/vision" },
+  { label: "Product Discovery", hash: "#/product-discovery" },
+  { label: "Relay", hash: "#/relay" },
+];
+
 function NavBar() {
+  const navigate = (hash: string) => {
+    window.location.hash = hash;
+    window.scrollTo(0, 0);
+  };
+
   return (
     <nav
       style={{
@@ -60,10 +72,35 @@ function NavBar() {
         right: 0,
         display: "flex",
         alignItems: "center",
+        justifyContent: "space-between",
         padding: "1.5rem clamp(1.5rem, 5vw, 4rem)",
       }}
     >
       <Logo light />
+      <div style={{ display: "flex", alignItems: "center", gap: "clamp(1rem, 3vw, 2rem)" }}>
+        {NAV_LINKS.map(({ label, hash }) => (
+          <button
+            key={hash}
+            onClick={() => navigate(hash)}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              fontFamily: "var(--font-sans)",
+              fontWeight: 400,
+              fontSize: "0.875rem",
+              color: "var(--white-65)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "color 0.15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--white-65)"; }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </nav>
   );
 }
