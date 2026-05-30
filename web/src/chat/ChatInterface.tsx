@@ -1,54 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import React, { useState, useCallback, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AnimatePresence, motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { ColorOrb } from "@/components/ui/ai-input";
-import { recordAndTranscribe } from "../voice/VoiceInput";
 import { speakText } from "../voice/VoiceOutput";
 
-// CSS keyframes for the recording rings — injected once
-const RING_STYLES = `
-@keyframes halo-ring-expand {
-  0%   { transform: scale(1);   opacity: 0.55; }
-  100% { transform: scale(2.1); opacity: 0;    }
-}
-@keyframes halo-orb-breathe {
-  0%, 100% { transform: scale(1);    }
-  50%       { transform: scale(1.06); }
-}
-@keyframes halo-orb-speak {
-  0%, 100% { transform: translateY(0px);  }
-  25%       { transform: translateY(-3px); }
-  75%       { transform: translateY(3px);  }
-}
-`;
-
-// Use the Lambda Function URL directly — bypasses API Gateway's 29s timeout
 const chatEndpoint: string =
   (import.meta.env.VITE_CHAT_ENDPOINT as string | undefined) ??
   `${import.meta.env.VITE_VOICE_API_URL as string}/chat`;
 
-type VoiceState = "idle" | "recording" | "processing" | "speaking";
+type Message = { role: "user" | "assistant"; text: string };
 
-interface Exchange {
-  query: string;
-  response: string | null;
-}
+export interface ChatHandle { open: () => void; }
 
-function useElapsed(active: boolean): number {
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    if (!active) { setElapsed(0); return; }
-    const start = Date.now();
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-  return elapsed;
-}
+const W = 520;
+const H_OPEN = 500;
+const H_CLOSED = 44;
 
 function ThinkingDots() {
   return (
-    <span style={{ display: "inline-flex", gap: "5px", alignItems: "center" }}>
+    <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
@@ -61,46 +32,87 @@ function ThinkingDots() {
   );
 }
 
-const STATE_LABELS: Record<VoiceState, string> = {
-  idle:       "press to speak",
-  recording:  "listening…",
-  processing: "thinking…",
-  speaking:   "speaking…",
+const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
+  p:          ({ children }) => <p style={{ margin: "0 0 0.55em", color: "var(--ink-1)", lineHeight: 1.7, fontSize: "0.88rem" }}>{children}</p>,
+  ul:         ({ children }) => <ul style={{ margin: "0 0 0.55em", paddingLeft: "1.2em", color: "var(--ink-2)" }}>{children}</ul>,
+  ol:         ({ children }) => <ol style={{ margin: "0 0 0.55em", paddingLeft: "1.2em", color: "var(--ink-2)" }}>{children}</ol>,
+  li:         ({ children }) => <li style={{ marginBottom: "0.2em", lineHeight: 1.65, fontSize: "0.88rem", color: "var(--ink-2)" }}>{children}</li>,
+  strong:     ({ children }) => <strong style={{ color: "var(--ink-1)", fontWeight: 600 }}>{children}</strong>,
+  h2:         ({ children }) => <h3 style={{ fontFamily: "var(--font-display)", fontSize: "0.98rem", fontWeight: 400, color: "var(--ink-1)", margin: "0.8em 0 0.3em" }}>{children}</h3>,
+  code:       ({ children }) => <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", background: "rgba(143,191,143,0.15)", padding: "0.1em 0.35em", borderRadius: "0.3em", color: "var(--green-moss)" }}>{children}</code>,
+  pre:        ({ children }) => <pre style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem", background: "var(--ink-1)", color: "var(--green-fog)", padding: "0.75rem 1rem", borderRadius: 8, overflowX: "auto", margin: "0.5em 0" }}>{children}</pre>,
+  blockquote: ({ children }) => <blockquote style={{ borderLeft: "2px solid var(--green-atmos)", paddingLeft: "0.8em", margin: "0.5em 0", color: "var(--ink-3)", fontStyle: "italic" }}>{children}</blockquote>,
 };
 
-export function ChatInterface({
-  idToken,
-  userId,
-  sessionId,
-  onSessionId,
-}: {
-  idToken?: string;
-  userId?: string;
-  sessionId?: string;
-  onSessionId?: (id: string) => void;
-}): JSX.Element {
-  const [exchange,    setExchange]    = useState<Exchange | null>(null);
-  const [voiceState,  setVoiceState]  = useState<VoiceState>("idle");
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const elapsed   = useElapsed(voiceState === "processing");
+type SRInstance = {
+  continuous: boolean; interimResults: boolean; lang: string;
+  onresult: ((e: { results: { length: number; [i: number]: { isFinal: boolean; [j: number]: { transcript: string } } }; resultIndex: number }) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  start(): void; stop(): void;
+};
 
+function getSR(): (new () => SRInstance) | undefined {
+  const w = window as unknown as Record<string, unknown>;
+  return (w["SpeechRecognition"] ?? w["webkitSpeechRecognition"]) as ((new () => SRInstance) | undefined);
+}
+
+export const ChatInterface = React.forwardRef<
+  ChatHandle,
+  { idToken?: string; userId?: string; sessionId?: string; onSessionId?: (id: string) => void }
+>(function ChatInterface({ idToken, userId, sessionId, onSessionId }, ref) {
+  const [isOpen, setIsOpen]           = useState(false);
+  const [messages, setMessages]       = useState<Message[]>([]);
+  const [input, setInput]             = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [isSpeaking, setIsSpeaking]   = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SRInstance | null>(null);
+  const baseTextRef    = useRef("");
+
+  React.useImperativeHandle(ref, () => ({
+    open: () => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 250); },
+  }));
+
+  useEffect(() => { if (isOpen) setTimeout(() => inputRef.current?.focus(), 300); }, [isOpen]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [exchange, voiceState]);
+    const el = inputRef.current; if (!el) return;
+    el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 80)}px`;
+  }, [input]);
 
-  // Core send — takes transcribed text, calls Bedrock Agent, returns response string
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) { recognitionRef.current.onend = null; recognitionRef.current.stop(); recognitionRef.current = null; }
+    setIsListening(false);
+  }, []);
+
+  const startListening = useCallback(() => {
+    const SR = getSR(); if (!SR) return;
+    stopListening(); baseTextRef.current = input.trim();
+    const r = new SR(); r.continuous = true; r.interimResults = true; r.lang = "en-US";
+    r.onresult = (e) => {
+      let finals = ""; let interim = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finals += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+      }
+      const base = baseTextRef.current; setInput((base ? base + " " : "") + finals + interim);
+    };
+    r.onend = () => { setIsListening(false); recognitionRef.current = null; };
+    r.onerror = (ev) => { if (ev.error !== "aborted") setIsListening(false); recognitionRef.current = null; };
+    r.start(); recognitionRef.current = r; setIsListening(true);
+  }, [input, stopListening]);
+
   const sendMessage = useCallback(async (text: string): Promise<string> => {
     const agentSessionId = sessionId ?? `s-${Date.now()}`;
     const res = await fetch(chatEndpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-      },
+      headers: { "Content-Type": "application/json", ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
       body: JSON.stringify({ message: text, sessionId: agentSessionId, ...(userId ? { userId } : {}) }),
     });
-    const body = await res.text();
-    let display = body || `HTTP ${res.status}`;
+    const body = await res.text(); let display = body || `HTTP ${res.status}`;
     try {
       const parsed = JSON.parse(body) as { response?: string; sessionId?: string; message?: string; result?: string };
       if (parsed.sessionId) onSessionId?.(parsed.sessionId);
@@ -109,277 +121,91 @@ export function ChatInterface({
     return display;
   }, [idToken, userId, sessionId, onSessionId]);
 
-  const handleVoice = useCallback(async () => {
-    if (voiceState !== "idle") return;
-
-    // 1. Record
-    setVoiceState("recording");
-    let transcript = "";
+  const handleSend = useCallback(async () => {
+    const text = input.trim(); if (!text || loading) return;
+    stopListening(); setInput(""); setMessages(prev => [...prev, { role: "user", text }]); setLoading(true);
     try {
-      transcript = await recordAndTranscribe(idToken ?? "");
-    } catch (err) {
-      setExchange({ query: "—", response: err instanceof Error ? err.message : "Microphone error" });
-      setVoiceState("idle");
-      return;
-    }
+      const response = await sendMessage(text);
+      setMessages(prev => [...prev, { role: "assistant", text: response }]);
+      setIsSpeaking(true);
+      try { await speakText(response, idToken); } catch { /* TTS non-fatal */ }
+      setIsSpeaking(false);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: "assistant", text: e instanceof Error ? e.message : "Request failed" }]);
+    } finally { setLoading(false); }
+  }, [input, loading, sendMessage, idToken, stopListening]);
 
-    if (!transcript.trim()) {
-      setVoiceState("idle");
-      return;
-    }
-
-    // 2. Process
-    setVoiceState("processing");
-    setExchange({ query: transcript, response: null });
-
-    let response = "";
-    try {
-      response = await sendMessage(transcript);
-    } catch (err) {
-      response = err instanceof Error ? err.message : "Request failed";
-    }
-    setExchange({ query: transcript, response });
-
-    // 3. Speak
-    setVoiceState("speaking");
-    try {
-      await speakText(response, idToken);
-    } catch { /* TTS failure is non-fatal */ }
-
-    setVoiceState("idle");
-  }, [voiceState, idToken, sendMessage]);
-
-  const isRecording  = voiceState === "recording";
-  const isProcessing = voiceState === "processing";
-  const isSpeaking   = voiceState === "speaking";
-  const isActive     = voiceState !== "idle";
-
-  const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
-    p:          ({ children }) => <p style={{ margin: "0 0 0.6em", color: "var(--ink-2)", lineHeight: 1.7, fontSize: "0.92rem" }}>{children}</p>,
-    ul:         ({ children }) => <ul style={{ margin: "0 0 0.6em", paddingLeft: "1.2em", color: "var(--ink-2)" }}>{children}</ul>,
-    ol:         ({ children }) => <ol style={{ margin: "0 0 0.6em", paddingLeft: "1.2em", color: "var(--ink-2)" }}>{children}</ol>,
-    li:         ({ children }) => <li style={{ marginBottom: "0.25em", lineHeight: 1.65, fontSize: "0.92rem", color: "var(--ink-2)" }}>{children}</li>,
-    strong:     ({ children }) => <strong style={{ color: "var(--ink-1)", fontWeight: 600 }}>{children}</strong>,
-    h1:         ({ children }) => <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem", fontWeight: 400, color: "var(--ink-1)", margin: "1em 0 0.4em", letterSpacing: "-0.01em" }}>{children}</h2>,
-    h2:         ({ children }) => <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 400, color: "var(--ink-1)", margin: "0.85em 0 0.35em" }}>{children}</h3>,
-    h3:         ({ children }) => <h4 style={{ fontFamily: "var(--font-sans)", fontSize: "0.88rem", fontWeight: 500, color: "var(--ink-2)", margin: "0.7em 0 0.3em", textTransform: "uppercase", letterSpacing: "0.06em" }}>{children}</h4>,
-    code:       ({ children }) => <code style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", background: "var(--sage-glow)", padding: "0.1em 0.4em", borderRadius: "0.3em", color: "var(--green-moss)" }}>{children}</code>,
-    pre:        ({ children }) => <pre style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", background: "var(--ink-1)", color: "var(--green-fog)", padding: "0.85rem 1.1rem", borderRadius: "var(--r-sm)", overflowX: "auto", margin: "0.6em 0" }}>{children}</pre>,
-    hr:         () => <hr style={{ border: "none", borderTop: "1px solid var(--glass-stroke)", margin: "0.85em 0" }} />,
-    blockquote: ({ children }) => <blockquote style={{ borderLeft: "2px solid var(--green-atmos)", paddingLeft: "0.85em", margin: "0.5em 0", color: "var(--ink-3)", fontStyle: "italic" }}>{children}</blockquote>,
+  const handleClose = useCallback(() => { setIsOpen(false); stopListening(); }, [stopListening]);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); }
   };
 
   return (
-    <>
-      {/* Inject ring keyframes once */}
-      <style>{RING_STYLES}</style>
-
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, width: "100%" }}>
-
-        {/* ── Orb + rings ───────────────────────────────────────────────── */}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: 180, height: 180 }}>
-
-          {/* Expanding rings during recording */}
-          {isRecording && [0, 1].map((i) => (
-            <span
-              key={i}
-              style={{
-                position: "absolute",
-                width: 96,
-                height: 96,
-                borderRadius: "50%",
-                border: "1.5px solid var(--green-atmos)",
-                animation: `halo-ring-expand 1.6s ease-out infinite`,
-                animationDelay: `${i * 0.55}s`,
-                pointerEvents: "none",
-              }}
-            />
-          ))}
-
-          {/* Outer glow ring during speaking */}
-          {isSpeaking && (
-            <motion.span
-              style={{
-                position: "absolute",
-                width: 108,
-                height: 108,
-                borderRadius: "50%",
-                background: "var(--sage-glow-strong)",
-                filter: "blur(12px)",
-                pointerEvents: "none",
-              }}
-              animate={{ scale: [1, 1.15, 1] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-            />
-          )}
-
-          {/* The orb button */}
-          <motion.button
-            onClick={handleVoice}
-            disabled={isActive}
-            aria-label={STATE_LABELS[voiceState]}
-            style={{
-              position: "relative",
-              zIndex: 1,
-              background: "none",
-              border: "none",
-              cursor: isActive ? "default" : "pointer",
-              padding: 0,
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              outline: "none",
-              animation: isRecording
-                ? undefined
-                : isSpeaking
-                ? "halo-orb-speak 1.2s ease-in-out infinite"
-                : "halo-orb-breathe 4s ease-in-out infinite",
-            }}
-            animate={isRecording ? { scale: 1.1 } : { scale: 1 }}
-            whileHover={!isActive ? { scale: 1.05 } : {}}
-            whileTap={!isActive ? { scale: 0.96 } : {}}
-            transition={{ type: "spring", stiffness: 380, damping: 28 }}
-          >
-            <ColorOrb
-              dimension="96px"
-              spinDuration={isRecording ? 4 : isSpeaking ? 8 : 20}
-              tones={isRecording ? {
-                base:    "oklch(22% 0.06 160)",
-                accent1: "oklch(68% 0.18 150)",
-                accent2: "oklch(52% 0.16 158)",
-                accent3: "oklch(60% 0.12 145)",
-              } : {
-                base:    "oklch(28% 0.04 160)",
-                accent1: "oklch(62% 0.14 155)",
-                accent2: "oklch(48% 0.12 162)",
-                accent3: "oklch(55% 0.08 150)",
-              }}
-            />
-          </motion.button>
+    <motion.div
+      style={{ width: W, background: "var(--glass-light)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)", border: "1px solid var(--glass-stroke)", boxShadow: "var(--shadow-card)", overflow: "hidden", display: "flex", flexDirection: "column" }}
+      animate={{ height: isOpen ? H_OPEN : H_CLOSED, borderRadius: isOpen ? 14 : 22 }}
+      transition={{ type: "spring", stiffness: 550, damping: 45, mass: 0.7 }}
+    >
+      {/* Header */}
+      <div style={{ height: H_CLOSED, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px 0 12px", borderBottom: isOpen ? "1px solid var(--glass-stroke)" : "none" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ColorOrb dimension="22px" spinDuration={isSpeaking ? 6 : 20} tones={{ base: "oklch(22% 0.04 160)", accent1: "oklch(62% 0.14 155)", accent2: "oklch(48% 0.12 162)", accent3: "oklch(55% 0.08 150)" }} />
+          <button onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 200); }} disabled={loading}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "var(--font-sans)", fontSize: "0.88rem", letterSpacing: "0.01em", color: isSpeaking ? "var(--green-moss)" : "var(--ink-2)", transition: "color 0.2s" }}>
+            {loading ? "thinking..." : isSpeaking ? "speaking..." : "Ask halo"}
+          </button>
         </div>
-
-        {/* ── State label ───────────────────────────────────────────────── */}
-        <div style={{ height: "2.2rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <AnimatePresence mode="wait">
-            {isProcessing ? (
-              <motion.div
-                key="dots"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <ThinkingDots />
-                {elapsed >= 8 && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--ink-4)", letterSpacing: "0.04em" }}
-                  >
-                    working on your computer… {elapsed}s
-                  </motion.span>
-                )}
-              </motion.div>
-            ) : (
-              <motion.span
-                key={voiceState}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.18 }}
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.72rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.28em",
-                  color: isActive ? "var(--green-moss)" : "var(--ink-4)",
-                }}
-              >
-                {STATE_LABELS[voiceState]}
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── Exchange card ─────────────────────────────────────────────── */}
-        <AnimatePresence>
-          {exchange && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ type: "spring", stiffness: 420, damping: 38, mass: 0.6 }}
-              style={{
-                width: "100%",
-                maxWidth: 520,
-                marginTop: "1.5rem",
-                background: "var(--glass-light)",
-                backdropFilter: "blur(var(--blur))",
-                WebkitBackdropFilter: "blur(var(--blur))",
-                border: "1px solid var(--glass-stroke)",
-                borderRadius: "var(--r-md)",
-                boxShadow: "var(--shadow-card)",
-                overflow: "hidden",
-              }}
-            >
-              {/* User query */}
-              <div style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                padding: "0.85rem 1rem 0.7rem",
-                borderBottom: "1px solid var(--glass-stroke)",
-              }}>
-                <div style={{ maxWidth: "85%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.2rem" }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.22em", color: "var(--ink-4)" }}>
-                    you
-                  </span>
-                  <span style={{
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "0.9rem",
-                    color: "var(--ink-1)",
-                    lineHeight: 1.55,
-                    background: "var(--sage-glow)",
-                    padding: "0.45rem 0.8rem",
-                    borderRadius: "var(--r-sm) var(--r-sm) 3px var(--r-sm)",
-                    border: "1px solid rgba(143,191,143,0.2)",
-                  }}>
-                    {exchange.query}
-                  </span>
-                </div>
-              </div>
-
-              {/* Response */}
-              <div style={{ padding: "0.85rem 1rem 1rem" }}>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.22em", color: "var(--green-moss)", display: "block", marginBottom: "0.5rem" }}>
-                  halo
-                </span>
-                <AnimatePresence mode="wait">
-                  {exchange.response === null ? (
-                    <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                      <ThinkingDots />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="response"
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.22, ease: "easeOut" }}
-                      style={{ fontFamily: "var(--font-sans)" }}
-                    >
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-                        {exchange.response}
-                      </ReactMarkdown>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div ref={bottomRef} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isOpen && (
+          <button onClick={handleClose} aria-label="Close chat"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-3)", display: "flex", alignItems: "center", padding: 6, borderRadius: 8, transition: "color 0.15s" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-1)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-3)"; }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 1L11 11M11 1L1 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </button>
+        )}
       </div>
-    </>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px 6px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {messages.length === 0 && (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-mono)", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.22em", color: "var(--ink-4)" }}>
+            say hello
+          </div>
+        )}
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{ maxWidth: "82%", padding: msg.role === "assistant" ? "10px 14px" : "9px 13px", borderRadius: msg.role === "user" ? "13px 13px 3px 13px" : "13px 13px 13px 3px", background: msg.role === "user" ? "oklch(38% 0.10 155)" : "rgba(255,255,255,0.36)", border: msg.role === "assistant" ? "1px solid var(--glass-stroke)" : "none", color: msg.role === "user" ? "#fff" : "var(--ink-1)", fontFamily: "var(--font-sans)", fontSize: "0.875rem", lineHeight: 1.6, wordBreak: "break-word" }}>
+              {msg.role === "assistant" ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{msg.text}</ReactMarkdown> : msg.text}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div style={{ padding: "10px 16px", borderRadius: "13px 13px 13px 3px", background: "rgba(255,255,255,0.36)", border: "1px solid var(--glass-stroke)" }}><ThinkingDots /></div>
+          </div>
+        )}
+        <div ref={bottomRef} style={{ height: 0 }} />
+      </div>
+
+      {/* Input row */}
+      <div style={{ flexShrink: 0, borderTop: "1px solid var(--glass-stroke)", display: "flex", alignItems: "flex-end", gap: 6, padding: "6px 8px", background: "rgba(255,255,255,0.18)" }}>
+        <button type="button" onClick={isListening ? stopListening : startListening} aria-label={isListening ? "Stop" : "Voice"}
+          style={{ flexShrink: 0, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: isListening ? "1px solid oklch(55% 0.14 155)" : "1px solid var(--glass-stroke)", background: isListening ? "oklch(55% 0.14 155 / 0.12)" : "transparent", color: isListening ? "oklch(45% 0.14 155)" : "var(--ink-3)", cursor: "pointer", transition: "all 0.15s" }}>
+          {isListening ? (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="oklch(45% 0.14 155)" stroke="none"><rect x="1" y="1" width="10" height="10" rx="2"/></svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          )}
+        </button>
+        <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask halo anything..." rows={1}
+          style={{ flex: 1, resize: "none", background: "transparent", border: "none", outline: "none", fontFamily: "var(--font-sans)", fontSize: "0.9rem", color: "var(--ink-1)", lineHeight: 1.5, padding: "7px 4px", maxHeight: 80, overflowY: "auto" }} />
+        <button type="button" onClick={() => void handleSend()} disabled={!input.trim() || loading} aria-label="Send"
+          style={{ flexShrink: 0, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "none", background: input.trim() && !loading ? "oklch(38% 0.10 155)" : "rgba(27,36,29,0.06)", color: input.trim() && !loading ? "#fff" : "var(--ink-4)", cursor: input.trim() && !loading ? "pointer" : "default", transition: "all 0.15s" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        </button>
+      </div>
+    </motion.div>
   );
-}
+});

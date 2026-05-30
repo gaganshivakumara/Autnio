@@ -1,4 +1,4 @@
-// Halo — capability cards, atmospheric statement, and footer.
+﻿// Halo â€” capability cards, atmospheric statement, and footer.
 import { Logo } from "./Primitives";
 import { Stories } from "@/components/ui/stories-carousel";
 import Grainient from "@/components/ui/Grainient";
@@ -6,35 +6,35 @@ import Grainient from "@/components/ui/Grainient";
 const CAPABILITY_STORIES = [
   {
     id: "vision",
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=720&q=80&auto=format&fit=crop",
-    label: "01 — Vision",
+    image: "/assets/sceneunderstanding.png",
+    label: "01 â€” Vision",
     title: "Real-world vision",
-    body: "Continuous scene understanding, object grounding, and sign reading — narrated softly, in real time.",
+    body: "Continuous scene understanding, object grounding, and sign reading â€” narrated softly, in real time.",
     avatarFallback: "V",
   },
   {
     id: "automation",
-    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=720&q=80&auto=format&fit=crop",
-    label: "02 — Automation",
+    image: "/assets/computerautomation.png",
+    label: "02 â€” Automation",
     title: "Computer automation",
-    body: "Describe the outcome. halo plans the steps and runs them on your machine — forms, apps, workflows.",
+    body: "Describe the outcome. halo plans the steps and runs them on your machine â€” forms, apps, workflows.",
     avatarFallback: "A",
   },
   {
     id: "voice",
     image: "https://images.unsplash.com/photo-1590736969955-71cc94901144?w=720&q=80&auto=format&fit=crop",
-    label: "03 — Voice",
+    label: "03 â€” Voice",
     title: "Voice presence",
     body: "Speak naturally from any device. halo listens, reasons, and replies in a calm, neural voice.",
     avatarFallback: "P",
   },
   {
-    id: "memory",
-    image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=720&q=80&auto=format&fit=crop",
-    label: "04 — Memory",
-    title: "Files & memory",
-    body: "Your documents, routines, and preferences travel with you, quietly organized and always in context.",
-    avatarFallback: "M",
+    id: "product-discovery",
+    image: "/assets/apifyproductscanner.png",
+    label: "04 â€” Discovery",
+    title: "Product discovery",
+    body: "Point your camera at any product. halo identifies it, scrapes reviews, and reads back a clear summary.",
+    avatarFallback: "D",
   },
 ];
 
@@ -99,7 +99,7 @@ export function Statement() {
           padding: "clamp(3.5rem, 8vw, 6rem) clamp(2rem, 6vw, 5rem)",
         }}
       >
-        {/* Grainient background — halo sage-green palette */}
+        {/* Grainient background â€” halo sage-green palette */}
         <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
           <Grainient
             color1="#c8dfc0"
@@ -148,7 +148,7 @@ export function Statement() {
             }}
           >
             This is not software you open. It is an intelligent atmosphere that
-            stays with you —{" "}
+            stays with you â€”{" "}
             <span style={{ color: "#a8d4a0", fontWeight: 300 }}>
               calm, aware, and quietly capable.
             </span>
@@ -199,7 +199,7 @@ export function Footer() {
             color: "var(--ink-3)",
           }}
         >
-          © 2026 halo
+          Â© 2026 halo
         </span>
         <span
           style={{
@@ -216,3 +216,4 @@ export function Footer() {
     </footer>
   );
 }
+
