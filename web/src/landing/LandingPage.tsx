@@ -5,6 +5,7 @@ import { Capabilities, Statement, Footer } from "./Sections";
 import { ChatInterface } from "../chat/ChatInterface";
 import { CameraFeed } from "../vision/CameraFeed";
 import { analyzeFrame, uploadFrame, type VisionMode } from "../vision/visionApi";
+import { discoverFromFrame } from "../vision/productDiscovery";
 import { speakText } from "../voice/VoiceOutput";
 import { FileBrowser } from "../files/FileBrowser";
 import { startRelay, type RelayStatus } from "../relay/OIRelay";
@@ -19,7 +20,12 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
   const [visionPrompt, setVisionPrompt] = useState("Describe the scene and identify important objects.");
   const [visionResult, setVisionResult] = useState("");
   const [visionBusy, setVisionBusy] = useState(false);
+  const [discoveryStatus, setDiscoveryStatus] = useState("");
+  // Per-product Bedrock session: rotated on each capture, shared with the chat
+  // panel for follow-up questions (same pattern as Dashboard).
+  const [productSessionId, setProductSessionId] = useState<string | undefined>(undefined);
   const relayRef = useRef<WebSocket | null>(null);
+  const discoveryCaptureRef = useRef<(() => void) | null>(null);
 
   const scrollToTools = () => {
     document.getElementById("tools-section")?.scrollIntoView({ behavior: "smooth" });
@@ -52,6 +58,25 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
       setVisionResult(error instanceof Error ? error.message : "Vision request failed");
     } finally {
       setVisionBusy(false);
+    }
+  };
+
+  const handleDiscoveryFrame = async (blob: Blob): Promise<void> => {
+    setDiscoveryStatus("Looking…");
+    const productSession = `product-${crypto.randomUUID()}`;
+    setProductSessionId(productSession);
+    try {
+      await discoverFromFrame(blob, {
+        sessionId: productSession,
+        onProgress: (stage, detail) => {
+          if (stage === "identifying") setDiscoveryStatus("Identifying what you're looking at…");
+          else if (stage === "scraping") setDiscoveryStatus(`Researching: ${detail ?? ""}…`);
+          else if (stage === "done") setDiscoveryStatus(`Done — ${detail ?? ""}. Ask a follow-up below.`);
+          else if (stage === "error") setDiscoveryStatus(detail ?? "Discovery failed");
+        },
+      });
+    } catch {
+      // status already set via onProgress
     }
   };
 
@@ -98,7 +123,11 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
         </h2>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", alignItems: "center" }}>
-          <ChatInterface />
+          {/* halo chat — sessionId tied to current product for follow-ups */}
+          <ChatInterface
+            sessionId={productSessionId}
+            onSessionId={setProductSessionId}
+          />
 
           <section className="dash-card" style={{ width: "100%" }}>
             <h2 className="dash-card-title">Vision Feed</h2>
@@ -152,6 +181,23 @@ export function LandingPage({ onSignIn: _onSignIn }: { onSignIn: () => void }) {
           </section>
 
           <div style={{ width: "100%" }}><FileBrowser /></div>
+
+          {/* Product Discovery — voice/camera → Amazon search via Apify MCP */}
+          <section className="dash-card" style={{ width: "100%" }}>
+            <h2 className="dash-card-title">Product Discovery</h2>
+            <p style={{ fontSize: "0.88rem", color: "var(--ink-3)", margin: "0 0 1rem", fontFamily: "var(--font-sans)", lineHeight: 1.5 }}>
+              Point your camera at any product. halo identifies it, scrapes Amazon reviews,
+              and reads back a summary — then you can ask follow-up questions in the chat above.
+            </p>
+            <CameraFeed
+              onFrame={handleDiscoveryFrame}
+              captureLabel="Discover Product"
+              registerCapture={(fn) => { discoveryCaptureRef.current = fn; }}
+            />
+            {discoveryStatus && (
+              <pre className="dash-pre">{discoveryStatus}</pre>
+            )}
+          </section>
         </div>
       </section>
 
