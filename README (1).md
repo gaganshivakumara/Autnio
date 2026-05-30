@@ -14,6 +14,7 @@ This guide divides the full Autnio build across a team of four. Each developer o
 | [Dev 2](./DEV2_BACKEND.md) | Backend, Automation & Data | AWS Lambda, DynamoDB, Apify, Box, Open Interpreter |
 | [Dev 3](./DEV3_INFRA.md) | Auth, Infrastructure & DevOps | Cognito, CDK, API Gateway, CI/CD, Web Hosting |
 | [Dev 4](./DEV4_VISION.md) | Vision & Web App | Qwen3-VL-235B, Nemotron Nano 2 VL (Bedrock), React Web App |
+| [Dev 5](./DEV5_VOICE.md) | Voice Commands | Amazon Transcribe (STT), Amazon Polly (TTS), AWS Lambda |
 
 ---
 

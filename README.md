@@ -19,6 +19,8 @@ Autnio is a unified AI platform that combines computer automation, remote access
 | Computer Agent | [Open Interpreter](https://github.com/openinterpreter/open-interpreter) | Local code execution on the user's machine; LLM backend is Bedrock |
 | Vision (Primary) | [Qwen3-VL-235B on Bedrock](https://github.com/QwenLM/Qwen3-VL) | Object detection, 2D grounding, scene understanding, OCR |
 | Vision (Realtime) | [NVIDIA Nemotron Nano 2 VL on Bedrock](https://arxiv.org/html/2511.03929v2) | Low-latency streaming fallback for phone camera feed |
+| Speech-to-Text | [Amazon Transcribe](https://aws.amazon.com/transcribe/) | Real-time voice command transcription |
+| Text-to-Speech | [Amazon Polly](https://aws.amazon.com/polly/) | Natural voice responses (neural engine) |
 
 ---
 
@@ -123,6 +125,7 @@ Every user action flows through Cognito for authentication, hits the Bedrock Age
 |---|---|---|
 | AI Orchestration | Multi-step planning, tool use, autonomous execution | Amazon Bedrock Agents |
 | Compute & Automation | App control, browser automation, form filling, scripting via local exec | Open Interpreter + Bedrock |
+| Voice I/O | Real-time speech-to-text, natural voice responses | Amazon Transcribe + Polly |
 | Auth & Security | User accounts, session tokens, access control | Amazon Cognito |
 | Persistence & Memory | Preferences, routines, task history, state | Amazon DynamoDB |
 | Web Data & Research | Scraping, job hunting, price tracking, research | Apify |
