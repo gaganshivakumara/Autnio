@@ -1,0 +1,6 @@
+llm:
+  model: openai/anthropic.claude-3-5-sonnet-20241022-v2:0
+  api_base: https://bedrock-mantle.us-east-1.api.aws/v1
+  api_key: REPLACE_WITH_BEDROCK_API_KEY
+auto_run: true
+safe_mode: off
