@@ -60,16 +60,26 @@ export class AgentStack extends cdk.Stack {
       description: 'Bedrock Agent IAM role ARN — share with Dev 1',
     });
 
-    // Placeholder outputs Dev 1 will fill in after creating the agent
     new cdk.CfnOutput(this, 'BedrockAgentIdPlaceholder', {
-      value: 'SET_BY_DEV1',
+      value: 'GI3CLHR41T',
       exportName: `autnio-${appEnv}-bedrock-agent-id`,
-      description: 'Dev 1: replace with actual Bedrock Agent ID after creation',
+      description: 'Bedrock Agent ID (autnio-dev-qwen-vision-agent)',
     });
     new cdk.CfnOutput(this, 'BedrockAgentAliasPlaceholder', {
-      value: 'SET_BY_DEV1',
+      value: 'IBLGJCZSMP',
       exportName: `autnio-${appEnv}-bedrock-agent-alias-id`,
-      description: 'Dev 1: replace with actual Bedrock Agent Alias ID',
+      description: 'Bedrock Agent Alias ID (autnio-dev-qwen-vision-agent)',
+    });
+
+    new cdk.CfnOutput(this, 'BedrockNemotronAgentId', {
+      value: 'J7UUGH6FC9',
+      exportName: `autnio-${appEnv}-bedrock-nemotron-agent-id`,
+      description: 'Bedrock Agent ID (autnio-dev-nemotron-vision-agent)',
+    });
+    new cdk.CfnOutput(this, 'BedrockNemotronAgentAlias', {
+      value: 'ZZYYMQVUZZ',
+      exportName: `autnio-${appEnv}-bedrock-nemotron-agent-alias-id`,
+      description: 'Bedrock Agent Alias ID (autnio-dev-nemotron-vision-agent)',
     });
   }
 }
