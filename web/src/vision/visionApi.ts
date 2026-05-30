@@ -39,7 +39,7 @@ export async function analyzeFrame(input: {
   mode: VisionMode;
   prompt?: string;
 }): Promise<VisionResult> {
-  const response = await fetch(`${restApiUrl}/vision`, {
+  const response = await fetch(`${restApiUrl}/vision/image`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
