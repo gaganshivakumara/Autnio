@@ -1,6 +1,7 @@
 // Halo — capability cards, atmospheric statement, and footer.
 import { Logo } from "./Primitives";
 import { Stories } from "@/components/ui/stories-carousel";
+import Grainient from "@/components/ui/Grainient";
 
 const CAPABILITY_STORIES = [
   {
@@ -83,51 +84,76 @@ export function Statement() {
   return (
     <section
       style={{
-        position: "relative",
         padding: "clamp(6rem, 16vh, 11rem) clamp(1.5rem, 6vw, 6rem)",
         textAlign: "center",
-        overflow: "hidden",
       }}
     >
+      {/* Rounded rect container: Grainient fills it, text sits on top */}
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          background: "radial-gradient(60% 80% at 50% 50%, var(--sage-glow), transparent 70%)",
+          position: "relative",
+          maxWidth: 900,
+          margin: "0 auto",
+          borderRadius: 28,
+          overflow: "hidden",
+          padding: "clamp(3.5rem, 8vw, 6rem) clamp(2rem, 6vw, 5rem)",
         }}
-      />
-      <div style={{ position: "relative", zIndex: 1, maxWidth: 900, margin: "0 auto" }}>
-        <div
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontWeight: 400,
-            fontSize: "0.75rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.32em",
-            color: "var(--ink-3)",
-            marginBottom: "2rem",
-          }}
-        >
-          The feeling
+      >
+        {/* Grainient background — halo sage-green palette */}
+        <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+          <Grainient
+            color1="#c8dfc0"
+            color2="#4f6b4c"
+            color3="#1c2e1e"
+            timeSpeed={0.18}
+            warpStrength={0.8}
+            warpFrequency={4.0}
+            warpSpeed={1.5}
+            warpAmplitude={60.0}
+            blendSoftness={0.12}
+            rotationAmount={380.0}
+            noiseScale={1.8}
+            grainAmount={0.055}
+            grainScale={1.5}
+            contrast={1.3}
+            saturation={0.85}
+            zoom={0.95}
+          />
         </div>
-        <p
-          style={{
-            fontFamily: "var(--font-sans)",
-            fontWeight: 200,
-            fontSize: "clamp(1.8rem, 3vw, 2.8rem)",
-            lineHeight: 1.25,
-            letterSpacing: "-0.01em",
-            color: "var(--ink-1)",
-            margin: 0,
-          }}
-        >
-          This is not software you open. It is an intelligent atmosphere that
-          stays with you —{" "}
-          <span style={{ color: "var(--green-moss)" }}>
-            calm, aware, and quietly capable.
-          </span>
-        </p>
+
+        {/* Text content */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontWeight: 400,
+              fontSize: "0.75rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.32em",
+              color: "rgba(255,255,255,0.5)",
+              marginBottom: "2rem",
+            }}
+          >
+            The feeling
+          </div>
+          <p
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontWeight: 200,
+              fontSize: "clamp(1.8rem, 3vw, 2.8rem)",
+              lineHeight: 1.25,
+              letterSpacing: "-0.01em",
+              color: "#fff",
+              margin: 0,
+            }}
+          >
+            This is not software you open. It is an intelligent atmosphere that
+            stays with you —{" "}
+            <span style={{ color: "#a8d4a0", fontWeight: 300 }}>
+              calm, aware, and quietly capable.
+            </span>
+          </p>
+        </div>
       </div>
     </section>
   );
