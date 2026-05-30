@@ -92,7 +92,7 @@ export function Statement() {
       <div
         style={{
           position: "relative",
-          maxWidth: 900,
+          maxWidth: 1280,
           margin: "0 auto",
           borderRadius: 28,
           overflow: "hidden",
