@@ -51,5 +51,7 @@ __pycache__/
 # Cursor project files
 .cursor/
 
-# Local launcher — contains hardcoded credentials, never commit
+# Local launchers — contain hardcoded credentials, never commit
 computer-use/start.sh
+computer-use/start.ps1
+computer-use/start.bat
