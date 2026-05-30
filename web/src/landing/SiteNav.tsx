@@ -2,7 +2,6 @@ import { Logo } from "./Primitives";
 
 const NAV_LINKS = [
   { label: "Product Discovery", hash: "#/product-discovery" },
-  { label: "Relay", hash: "#/relay" },
 ];
 
 export function SiteNav() {
