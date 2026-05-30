@@ -15,6 +15,10 @@ if [[ ! -f "${PROFILE_PATH}" ]]; then
   exit 1
 fi
 
+export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-AKIA2FO3A4DMIEIHDECX}"
+export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-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}"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+
 echo "Starting Open Interpreter server on http://localhost:8000"
 echo "Using profile: ${PROFILE_PATH}"
 
