@@ -1,0 +1,180 @@
+/* ============================================================
+   HALO — Colors & Type
+   "An intelligent atmosphere."
+   Cinematic, airy, nature-blended-with-technology aesthetic.
+   ============================================================ */
+
+/* ---------- FONTS ----------
+   Moue       — brand wordmark / signature display (geometric, rounded, single weight).
+                Licensed "Demo for Personal Use" (iFonts) — replace with a licensed
+                copy before production use.
+   Geist      — primary UI + cinematic headline face (weights 100–900). Loaded from
+                Google Fonts CDN. Substituted for the brief's Neue Montreal / SF Pro /
+                Satoshi suggestions, which are not openly licensed.
+   Geist Mono — telemetry / labels / data overlays.
+*/
+@font-face {
+  font-family: "Moue";
+  src: url("fonts/moue.otf") format("opentype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+:root {
+  /* ===== Type families ===== */
+  --font-display: "Moue", "Geist", system-ui, sans-serif;        /* wordmark, signature moments */
+  --font-sans:    "Geist", system-ui, -apple-system, sans-serif;  /* headlines + body + UI */
+  --font-mono:    "Geist Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ===== Atmospheric greens (the soul of the brand) ===== */
+  --green-atmos:   #8FBF8F;   /* soft atmospheric green — primary glow */
+  --green-emerald: #7AA874;   /* muted emerald — deeper accent */
+  --green-fog:     #BFD8B8;   /* fog green — pale diffusion */
+  --green-moss:    #4F6B4C;   /* deep moss — text accent on light */
+  --sage-glow:     rgba(143, 191, 143, 0.18);  /* soft sage ambient light */
+  --sage-glow-strong: rgba(143, 191, 143, 0.34);
+
+  /* ===== Sky & atmosphere (backgrounds — never dark) ===== */
+  --sky-high:   #D7E7F0;   /* upper sky, pale blue */
+  --sky-mid:    #E6F0EC;   /* mid atmosphere, blue→green */
+  --sky-low:    #EFF5EE;   /* horizon haze, green-white */
+  --haze:       #F4F8F4;   /* page base */
+  --cloud:      #FBFDFB;   /* near-white cloud / card */
+
+  /* ===== Ink (text on light surfaces) ===== */
+  --ink-1: #1B241D;   /* primary — near-black, green-tinted */
+  --ink-2: #49544C;   /* secondary */
+  --ink-3: #7E8980;   /* tertiary / captions */
+  --ink-4: #AAB4AC;   /* disabled / faint */
+
+  /* ===== Light (text on hero / over imagery) ===== */
+  --white:    #FFFFFF;
+  --white-85: rgba(255, 255, 255, 0.85);
+  --white-65: rgba(255, 255, 255, 0.65);
+  --white-40: rgba(255, 255, 255, 0.40);
+
+  /* ===== Glass / floating surfaces ===== */
+  --glass-hero:        rgba(255, 255, 255, 0.12);   /* pills floating over hero video */
+  --glass-hero-border: rgba(255, 255, 255, 0.32);
+  --glass-light:       rgba(255, 255, 255, 0.58);   /* cards on light pages */
+  --glass-light-border: rgba(255, 255, 255, 0.70);
+  --glass-stroke:      rgba(27, 36, 29, 0.08);      /* hairline on light */
+  --blur:              22px;
+
+  /* ===== Radii ===== */
+  --r-pill: 999px;
+  --r-lg:   28px;
+  --r-md:   18px;
+  --r-sm:   12px;
+
+  /* ===== Soft elevation (atmospheric, never harsh) ===== */
+  --shadow-float: 0 24px 60px -24px rgba(79, 107, 76, 0.35);
+  --shadow-card:  0 16px 40px -20px rgba(27, 36, 29, 0.18);
+  --shadow-pill:  0 8px 24px -10px rgba(27, 36, 29, 0.20);
+  --glow-green:   0 0 80px 0 var(--sage-glow-strong);
+
+  /* ===== Motion ===== */
+  --ease-cinematic: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-soft:      cubic-bezier(0.4, 0.0, 0.2, 1);
+  --dur-drift:      18s;   /* ambient gradient/cloud drift */
+  --dur-float:      7s;    /* floating overlay bob */
+  --dur-hover:      0.5s;  /* nothing snaps */
+}
+
+/* ============================================================
+   SEMANTIC TYPE SCALE  (airy, cinematic — generous tracking)
+   ============================================================ */
+
+.display-hero {
+  font-family: var(--font-sans);
+  font-weight: 200;                /* ultra-thin */
+  font-size: clamp(3.5rem, 9vw, 9rem);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  color: var(--white);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.h1 {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  color: var(--ink-1);
+}
+
+.h2 {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ink-1);
+}
+
+.h3 {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--ink-1);
+}
+
+.body-lg {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--ink-2);
+}
+
+.caption {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* Section label — uppercase, heavily tracked, low opacity */
+.label {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: var(--ink-3);
+}
+
+.label-light {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: var(--white-65);
+}
+
+/* Data / telemetry readout */
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
