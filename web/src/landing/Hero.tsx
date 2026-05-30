@@ -57,11 +57,6 @@ const NAV_LINKS = [
 ];
 
 function NavBar() {
-  const navigate = (hash: string) => {
-    window.location.hash = hash;
-    window.scrollTo(0, 0);
-  };
-
   return (
     <nav
       style={{
@@ -79,26 +74,23 @@ function NavBar() {
       <Logo light />
       <div style={{ display: "flex", alignItems: "center", gap: "clamp(1rem, 3vw, 2rem)" }}>
         {NAV_LINKS.map(({ label, hash }) => (
-          <button
+          <a
             key={hash}
-            onClick={() => navigate(hash)}
+            href={hash}
             style={{
-              background: "none",
-              border: "none",
-              padding: 0,
               fontFamily: "var(--font-sans)",
               fontWeight: 400,
               fontSize: "0.875rem",
               color: "var(--white-65)",
-              cursor: "pointer",
+              textDecoration: "none",
               whiteSpace: "nowrap",
               transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--white-65)"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--white-65)"; }}
           >
             {label}
-          </button>
+          </a>
         ))}
       </div>
     </nav>

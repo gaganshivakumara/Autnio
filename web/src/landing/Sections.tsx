@@ -84,7 +84,7 @@ export function Statement() {
   return (
     <section
       style={{
-        padding: "clamp(6rem, 16vh, 11rem) clamp(1.5rem, 6vw, 6rem)",
+        padding: "clamp(2rem, 5vh, 4rem) clamp(1.5rem, 6vw, 6rem) clamp(4rem, 10vh, 7rem)",
         maxWidth: 1280,
         margin: "0 auto",
         textAlign: "center",
