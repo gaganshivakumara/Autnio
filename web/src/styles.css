@@ -1,3 +1,6 @@
+/* Tailwind utilities only — preflight disabled in config to preserve existing tokens */
+@tailwind utilities;
+
 /* ============================================================
    HALO — App Styles
    Global resets + dashboard panel styles.
