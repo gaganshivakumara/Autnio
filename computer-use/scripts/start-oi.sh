@@ -18,4 +18,4 @@ fi
 echo "Starting Open Interpreter server on http://localhost:8000"
 echo "Using profile: ${PROFILE_PATH}"
 
-interpreter --server --port 8000 --profile "${PROFILE_PATH}"
+interpreter --server --profile "${PROFILE_PATH}"

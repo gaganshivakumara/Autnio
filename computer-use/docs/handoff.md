@@ -55,3 +55,20 @@ When `functions/agent/dispatch.py` is upgraded from placeholder to active dispat
 
 - Provisioning now uses direct AWS API calls in `computer-use/infra/provision.mjs` (no CDK).
 - Teardown is available via `computer-use/infra/destroy.mjs`.
+
+## Verification Checklist
+
+- [x] Python unit tests pass:
+  - `python3 -m unittest discover -s computer-use/tests -p "*_unittest.py"`
+- [x] Python handlers compile:
+  - `python3 -m py_compile functions/agent/dispatch.py computer-use/lambdas/*.py`
+- [x] Web demo build passes:
+  - `npm --prefix computer-use/web-demo run build`
+- [x] Infra deploy is idempotent:
+  - `npm --prefix computer-use/infra run deploy` executed twice successfully
+- [ ] macOS wrapper build in Xcode:
+  - open files in `computer-use/macos-app/` in an Xcode macOS app target and run
+- [ ] Full relay smoke run:
+  - start OI (`computer-use/scripts/start-oi.sh`)
+  - connect web demo to deployed WS endpoint
+  - dispatch from `functions/agent/dispatch.py` and observe `output/done/error` flow
