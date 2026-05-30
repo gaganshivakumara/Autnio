@@ -5,12 +5,18 @@ import os
 import boto3
 
 from bedrock_util import agent_response, parse_body
+import product_discovery
 
 APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
 _TOKEN_CONFIGURED = bool(APIFY_TOKEN) and not APIFY_TOKEN.startswith("REPLACE")
 
 
 def handler(event, context):
+    # The web-data action group routes by apiPath; product/place discovery is
+    # handled by its own module, everything else is a raw actor run.
+    if event.get("apiPath", "").rstrip("/") == "/product-discovery":
+        return product_discovery.handler(event, context)
+
     body = parse_body(event)
     actor_id = body.get("actorId", "")
     run_input = body.get("runInput", {})
