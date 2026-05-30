@@ -1,0 +1,84 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "File Management", "version": "1.0.0" },
+  "paths": {
+    "/read": {
+      "post": {
+        "summary": "Read Box file",
+        "description": "Fetch file or document content from Box by path or file ID",
+        "operationId": "readBoxFile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": {
+                  "userId": { "type": "string" },
+                  "fileId": { "type": "string" },
+                  "path": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "File content returned" }
+        }
+      }
+    },
+    "/write": {
+      "post": {
+        "summary": "Write Box file",
+        "description": "Upload content to Box and return the shared link",
+        "operationId": "writeBoxFile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "path", "content"],
+                "properties": {
+                  "userId": { "type": "string" },
+                  "path": { "type": "string" },
+                  "content": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "File written" }
+        }
+      }
+    },
+    "/share": {
+      "post": {
+        "summary": "Share Box item",
+        "description": "Update Box item sharing permissions for a collaborator",
+        "operationId": "shareBoxItem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId", "fileId"],
+                "properties": {
+                  "userId": { "type": "string" },
+                  "fileId": { "type": "string" },
+                  "email": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Item shared" }
+        }
+      }
+    }
+  }
+}
