@@ -6,7 +6,7 @@ import Grainient from "@/components/ui/Grainient";
 const CAPABILITY_STORIES = [
   {
     id: "vision",
-    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=720&q=80&auto=format&fit=crop",
+    image: "/assets/sceneunderstanding.png",
     label: "01 — Vision",
     title: "Real-world vision",
     body: "Continuous scene understanding, object grounding, and sign reading — narrated softly, in real time.",
@@ -14,7 +14,7 @@ const CAPABILITY_STORIES = [
   },
   {
     id: "automation",
-    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=720&q=80&auto=format&fit=crop",
+    image: "/assets/computerautomation.png",
     label: "02 — Automation",
     title: "Computer automation",
     body: "Describe the outcome. halo plans the steps and runs them on your machine — forms, apps, workflows.",
@@ -29,12 +29,12 @@ const CAPABILITY_STORIES = [
     avatarFallback: "P",
   },
   {
-    id: "memory",
-    image: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=720&q=80&auto=format&fit=crop",
-    label: "04 — Memory",
-    title: "Files & memory",
-    body: "Your documents, routines, and preferences travel with you, quietly organized and always in context.",
-    avatarFallback: "M",
+    id: "product-discovery",
+    image: "/assets/apifyproductscanner.png",
+    label: "04 — Discovery",
+    title: "Product discovery",
+    body: "Point your camera at any product. halo identifies it, scrapes reviews, and reads back a clear summary.",
+    avatarFallback: "D",
   },
 ];
 

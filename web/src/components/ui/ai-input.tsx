@@ -79,10 +79,15 @@ interface MorphPanelProps {
   isLoading?: boolean;
 }
 
+export interface MorphPanelHandle {
+  open: () => void;
+}
+
 const FORM_WIDTH = 520;
 const FORM_HEIGHT = 240;
 
-export function MorphPanel({ onSend, isLoading = false }: MorphPanelProps) {
+export const MorphPanel = React.forwardRef<MorphPanelHandle, MorphPanelProps>(
+function MorphPanel({ onSend, isLoading = false }, ref) {
   const wrapperRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [showForm, setShowForm] = React.useState(false);
@@ -97,6 +102,8 @@ export function MorphPanel({ onSend, isLoading = false }: MorphPanelProps) {
     setShowForm(true);
     setTimeout(() => { textareaRef.current?.focus(); });
   }, []);
+
+  React.useImperativeHandle(ref, () => ({ open: triggerOpen }), [triggerOpen]);
 
   const handleSuccess = React.useCallback(() => {
     triggerClose();
@@ -155,7 +162,7 @@ export function MorphPanel({ onSend, isLoading = false }: MorphPanelProps) {
       </motion.div>
     </div>
   );
-}
+});
 
 // ── DockBar ──────────────────────────────────────────────────────────────────
 
