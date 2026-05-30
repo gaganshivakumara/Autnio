@@ -1,95 +1,322 @@
-:root {
-  color: #172033;
-  background: #f5f7fb;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+/* ============================================================
+   HALO — App Styles
+   Global resets + dashboard panel styles.
+   Tokens come from design-tokens.css; atmosphere from atmosphere.css.
+   ============================================================ */
+
+/* ---------- Global resets ---------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
+  background: var(--haze);
+  color: var(--ink-1);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-button,
-input,
-select,
-textarea {
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input, select, textarea {
   font: inherit;
 }
 
-button {
-  border: 0;
-  border-radius: 10px;
-  background: #2157ff;
-  color: white;
+/* ---------- Dashboard layout ---------- */
+.dashboard {
+  min-height: 100vh;
+  background: var(--haze);
+}
+
+.dash-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem clamp(1.5rem, 5vw, 4rem);
+  border-bottom: 1px solid var(--glass-stroke);
+  background: var(--cloud);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.dash-back {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
   cursor: pointer;
-  padding: 0.75rem 1rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--r-sm);
+  transition: background var(--dur-hover) var(--ease-soft);
+}
+.dash-back:hover {
+  background: var(--sage-glow);
 }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.dash-wordmark {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.3rem;
+  letter-spacing: 0.01em;
+  color: var(--ink-1);
+  line-height: 1;
 }
 
-input,
-select,
-textarea {
-  border: 1px solid #d7ddec;
-  border-radius: 10px;
-  box-sizing: border-box;
-  padding: 0.75rem;
-  width: 100%;
+.dash-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-pre {
-  background: #111827;
-  border-radius: 10px;
-  color: #d1fae5;
-  overflow: auto;
-  padding: 1rem;
-  white-space: pre-wrap;
+.dash-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
 }
 
-.container {
-  margin: 0 auto;
+.dash-user-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-atmos);
+  box-shadow: 0 0 10px 2px var(--sage-glow-strong);
+  flex-shrink: 0;
+}
+
+.dash-content {
   max-width: 980px;
-  padding: 2rem;
+  margin: 0 auto;
+  padding: 2rem clamp(1rem, 3vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-.card {
-  background: white;
-  border: 1px solid #e4e8f2;
-  border-radius: 18px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
-  margin: 1rem 0;
-  padding: 1.25rem;
+/* ---------- Dashboard cards ---------- */
+.dash-card {
+  background: var(--glass-light);
+  border: 1px solid var(--glass-light-border);
+  backdrop-filter: blur(var(--blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 1.5rem;
+  transition: box-shadow var(--dur-hover) var(--ease-soft);
+}
+.dash-card:hover {
+  box-shadow: var(--shadow-float);
 }
 
-.grid {
+.dash-card-title {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: 1.5rem;
+  letter-spacing: -0.005em;
+  color: var(--ink-1);
+  margin: 0 0 1.25rem 0;
+}
+
+.dash-grid {
   display: grid;
   gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-bottom: 1rem;
 }
 
-.buttonRow {
+.dash-input {
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-sm);
+  padding: 0.75rem 1rem;
+  width: 100%;
+  background: var(--cloud);
+  color: var(--ink-1);
+  font-size: 0.95rem;
+  transition: border-color var(--dur-hover) var(--ease-soft), box-shadow var(--dur-hover) var(--ease-soft);
+}
+.dash-input:focus {
+  outline: none;
+  border-color: var(--green-atmos);
+  box-shadow: 0 0 0 3px var(--sage-glow);
+}
+.dash-input::placeholder {
+  color: var(--ink-4);
+}
+
+.dash-button-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
 }
 
+.dash-status {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ink-3);
+  margin: 0.8rem 0 0;
+  letter-spacing: 0.01em;
+}
+
+.dash-relay-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dash-pre {
+  background: var(--ink-1);
+  border-radius: var(--r-md);
+  color: var(--green-fog);
+  overflow: auto;
+  padding: 1rem 1.25rem;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  margin: 1rem 0 0;
+  border: 1px solid rgba(143, 191, 143, 0.12);
+}
+
+/* ---------- Existing component compat ---------- */
+/* ChatInterface uses .card class — remap to dash-card */
+.card {
+  background: var(--glass-light);
+  border: 1px solid var(--glass-light-border);
+  backdrop-filter: blur(var(--blur)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 1.5rem;
+  margin: 0;
+  transition: box-shadow var(--dur-hover) var(--ease-soft);
+}
+.card:hover {
+  box-shadow: var(--shadow-float);
+}
+.card h2 {
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: 1.5rem;
+  letter-spacing: -0.005em;
+  color: var(--ink-1);
+  margin: 0 0 1.25rem 0;
+}
+.card textarea,
+.card input,
+.card select {
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--r-sm);
+  padding: 0.75rem 1rem;
+  width: 100%;
+  background: var(--cloud);
+  color: var(--ink-1);
+  font-size: 0.95rem;
+  transition: border-color var(--dur-hover) var(--ease-soft), box-shadow var(--dur-hover) var(--ease-soft);
+}
+.card textarea:focus,
+.card input:focus,
+.card select:focus {
+  outline: none;
+  border-color: var(--green-atmos);
+  box-shadow: 0 0 0 3px var(--sage-glow);
+}
+.card button {
+  background: var(--green-moss);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 0.7rem 1.4rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  margin-top: 0.75rem;
+  transition: all var(--dur-hover) var(--ease-soft);
+  box-shadow: var(--shadow-pill);
+}
+.card button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -12px rgba(79,107,76,0.6);
+}
+.card button:active {
+  transform: scale(0.985);
+}
+.card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.card pre {
+  background: var(--ink-1);
+  border-radius: var(--r-md);
+  color: var(--green-fog);
+  overflow: auto;
+  padding: 1rem 1.25rem;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  margin: 1rem 0 0;
+  border: 1px solid rgba(143, 191, 143, 0.12);
+}
+.card p {
+  font-family: var(--font-sans);
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* Camera feed styling */
 .cameraFeed {
   display: grid;
   gap: 0.75rem;
   margin-top: 1rem;
 }
-
 .cameraFeed video {
-  background: #0f172a;
-  border-radius: 16px;
+  background: var(--ink-1);
+  border-radius: var(--r-md);
   max-height: 480px;
   object-fit: cover;
   width: 100%;
+  border: 1px solid rgba(143, 191, 143, 0.12);
+}
+.cameraFeed button {
+  background: var(--green-moss);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-pill);
+  padding: 0.7rem 1.4rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: all var(--dur-hover) var(--ease-soft);
+  box-shadow: var(--shadow-pill);
+}
+.cameraFeed button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -12px rgba(79,107,76,0.6);
 }
 
 .error {
   color: #b42318;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 760px) {
+  .nav-links { display: none !important; }
+  .footer-grid { grid-template-columns: 1fr 1fr !important; }
+  .dash-content { padding: 1.5rem 1rem; }
+  .dash-grid { grid-template-columns: 1fr; }
 }
