@@ -1,16 +1,23 @@
 import { useRef, useState } from "react";
 import { SiteNav } from "../landing/SiteNav";
 import { CameraFeed } from "../vision/CameraFeed";
+import { ProductChat } from "./ProductChat";
 import { discoverFromFrame } from "../vision/productDiscovery";
 
 export function ProductDiscoveryPage() {
   const [discoveryStatus, setDiscoveryStatus] = useState("");
+  // One Bedrock session per product: each capture rotates it so the chat's
+  // follow-up questions are about the latest product, never an older one.
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const captureRef = useRef<(() => void) | null>(null);
 
   const handleDiscoveryFrame = async (blob: Blob): Promise<void> => {
     setDiscoveryStatus("Looking…");
+    const productSession = `product-${crypto.randomUUID()}`;
+    setSessionId(productSession);
     try {
       await discoverFromFrame(blob, {
+        sessionId: productSession,
         onProgress: (stage, detail) => {
           if (stage === "identifying") setDiscoveryStatus("Identifying what you're looking at…");
           else if (stage === "scraping") setDiscoveryStatus(`Researching: ${detail ?? ""}…`);
@@ -37,7 +44,9 @@ export function ProductDiscoveryPage() {
           Point. Discover. Ask.
         </h1>
         <p style={{ fontFamily: "var(--font-sans)", fontSize: "0.98rem", color: "var(--ink-3)", lineHeight: 1.65, marginBottom: "3rem", maxWidth: "52ch" }}>
-          Point your camera at any product. halo identifies it, scrapes Amazon reviews, and reads back a summary — then ask follow-up questions below.
+          Point your camera at any product and tap Discover — or just say “take a picture”. halo identifies it,
+          scrapes Amazon reviews, and reads back a summary. Then ask follow-up questions below by voice or text —
+          answers appear here and are read aloud.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
@@ -48,7 +57,13 @@ export function ProductDiscoveryPage() {
               registerCapture={(fn) => { captureRef.current = fn; }}
             />
             {discoveryStatus && <pre className="dash-pre">{discoveryStatus}</pre>}
-        </section>
+          </section>
+
+          <ProductChat
+            sessionId={sessionId}
+            onSessionId={setSessionId}
+            onCaptureCommand={() => captureRef.current?.()}
+          />
         </div>
       </main>
     </div>
