@@ -7,37 +7,35 @@ import { VisionPage } from "./pages/VisionPage";
 import { ProductDiscoveryPage } from "./pages/ProductDiscoveryPage";
 import { RelayPage } from "./pages/RelayPage";
 
-type Route = "landing" | "app" | "chat" | "vision" | "product-discovery" | "relay";
-
-function getRoute(): Route {
+function getRoute() {
   const h = window.location.hash;
-  if (h === "#/app") return "app";
-  if (h === "#/chat") return "chat";
-  if (h === "#/vision") return "vision";
-  if (h === "#/product-discovery") return "product-discovery";
-  if (h === "#/relay") return "relay";
-  return "landing";
+  if (h.startsWith("#/app")) return "app" as const;
+  if (h.startsWith("#/chat")) return "chat" as const;
+  if (h.startsWith("#/vision")) return "vision" as const;
+  if (h.startsWith("#/product-discovery")) return "product-discovery" as const;
+  if (h.startsWith("#/relay")) return "relay" as const;
+  return "landing" as const;
 }
 
 export function App(): JSX.Element {
-  const [route, setRoute] = useState<Route>(getRoute);
+  // Tick just triggers a re-render; route is always derived fresh.
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    const onHash = () => {
-      setRoute(getRoute());
+    const refresh = () => {
+      setTick((n) => n + 1);
       window.scrollTo(0, 0);
     };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("hashchange", refresh);
+    return () => window.removeEventListener("hashchange", refresh);
   }, []);
 
-  const goToLanding = () => { window.location.hash = "#/"; };
+  const route = getRoute();
 
-  if (route === "app") return <Dashboard onBack={goToLanding} />;
+  if (route === "app") return <Dashboard onBack={() => { window.location.hash = "#/"; }} />;
   if (route === "chat") return <ChatPage />;
   if (route === "vision") return <VisionPage />;
   if (route === "product-discovery") return <ProductDiscoveryPage />;
   if (route === "relay") return <RelayPage />;
-
   return <LandingPage onSignIn={() => { window.location.hash = "#/app"; }} />;
 }
