@@ -7,15 +7,7 @@ const NAV_LINKS = [
   { label: "Relay", hash: "#/relay" },
 ];
 
-export function SiteNav({ light = false }: { light?: boolean }) {
-  const navigate = (hash: string) => {
-    window.location.hash = hash;
-    window.scrollTo(0, 0);
-  };
-
-  const textColor = light ? "rgba(255,255,255,0.8)" : "var(--ink-2)";
-  const hoverColor = light ? "#ffffff" : "var(--ink-1)";
-
+export function SiteNav() {
   return (
     <nav
       style={{
@@ -29,38 +21,36 @@ export function SiteNav({ light = false }: { light?: boolean }) {
         justifyContent: "space-between",
         padding: "0 clamp(1.5rem, 5vw, 4rem)",
         height: 56,
+        background: "rgba(240,246,240,0.72)",
+        backdropFilter: "blur(18px)",
+        WebkitBackdropFilter: "blur(18px)",
+        borderBottom: "1px solid var(--glass-stroke)",
       }}
     >
-      <button
-        onClick={() => navigate("#/")}
-        style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
-      >
-        <Logo light={light} />
-      </button>
+      <a href="#/" style={{ textDecoration: "none" }}>
+        <Logo />
+      </a>
 
       <div style={{ display: "flex", alignItems: "center", gap: "clamp(1rem, 3vw, 2.5rem)" }}>
         {NAV_LINKS.map(({ label, hash }) => (
-          <button
+          <a
             key={hash}
-            onClick={() => navigate(hash)}
+            href={hash}
             style={{
-              background: "none",
-              border: "none",
-              padding: 0,
               fontFamily: "var(--font-sans)",
               fontWeight: 400,
               fontSize: "0.875rem",
               letterSpacing: "0.01em",
-              color: textColor,
-              cursor: "pointer",
+              color: "var(--ink-2)",
+              textDecoration: "none",
               whiteSpace: "nowrap",
               transition: "color 0.15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = hoverColor; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = textColor; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ink-1)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--ink-2)"; }}
           >
             {label}
-          </button>
+          </a>
         ))}
       </div>
     </nav>
