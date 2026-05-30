@@ -1,0 +1,200 @@
+openapi: "3.0.0"
+info:
+  title: computer-automation
+  version: "1.0"
+  description: Automate computer tasks on behalf of the user
+paths:
+  /dispatch:
+    post:
+      summary: Dispatch a general-purpose automation task to the user's local machine via Open Interpreter
+      operationId: dispatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task]
+              properties:
+                task:
+                  type: string
+                  description: Natural language description of the task to perform on the user's computer
+                sessionId:
+                  type: string
+                  description: Optional session ID to correlate task results
+      responses:
+        "200":
+          description: Task dispatched to Open Interpreter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "503":
+          description: Open Interpreter not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /send-email:
+    post:
+      summary: Send an email on behalf of the user
+      operationId: sendEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, subject, body]
+              properties:
+                to:
+                  type: string
+                  description: Recipient email address
+                subject:
+                  type: string
+                  description: Email subject line
+                body:
+                  type: string
+                  description: Plain-text email body
+                cc:
+                  type: string
+                  description: Comma-separated CC addresses (optional)
+      responses:
+        "200":
+          description: Email sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /schedule-meeting:
+    post:
+      summary: Schedule a calendar meeting or event
+      operationId: scheduleMeeting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, startTime, endTime]
+              properties:
+                title:
+                  type: string
+                  description: Meeting title
+                startTime:
+                  type: string
+                  description: ISO 8601 start time (e.g. 2024-09-01T10:00:00)
+                endTime:
+                  type: string
+                  description: ISO 8601 end time
+                attendees:
+                  type: string
+                  description: Comma-separated attendee email addresses
+                description:
+                  type: string
+                  description: Meeting description or agenda
+      responses:
+        "200":
+          description: Meeting scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /fill-form:
+    post:
+      summary: Fill out and optionally submit a web form
+      operationId: fillForm
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, fields]
+              properties:
+                url:
+                  type: string
+                  description: Full URL of the page containing the form
+                fields:
+                  type: string
+                  description: >
+                    JSON object mapping CSS selectors to values.
+                    Example: {"#firstName":"John","#email":"john@example.com"}
+                submitSelector:
+                  type: string
+                  description: CSS selector of the submit button. Omit to fill without submitting.
+      responses:
+        "200":
+          description: Form filled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /open-application:
+    post:
+      summary: Open, close, or navigate to a URL in an app on the user's registered machine
+      operationId: openApplication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [application]
+              properties:
+                application:
+                  type: string
+                  description: Application name (e.g. "Safari", "Slack", "Terminal")
+                action:
+                  type: string
+                  description: "Action: open, close, or url"
+                  enum: [open, close, url]
+                  default: open
+                parameters:
+                  type: string
+                  description: Extra parameters — required for action=url (the URL to open)
+      responses:
+        "200":
+          description: Command dispatched or completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        data:
+          type: object
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServerError:
+      description: Internal error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

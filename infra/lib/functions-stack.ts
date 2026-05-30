@@ -17,15 +17,27 @@ interface FunctionsStackProps extends cdk.StackProps {
 export interface ExportedFunctions {
   // Dev 2 — automation
   sendEmail: lambda.Function;
+  fillForm: lambda.Function;
+  openApplication: lambda.Function;
+  scheduleMeeting: lambda.Function;
   triggerApify: lambda.Function;
   checkApifyRun: lambda.Function;
   dispatchOI: lambda.Function;
+  // Dev 2 — data (Apify via Bedrock)
+  apifyJobs: lambda.Function;
+  apifyResearch: lambda.Function;
+  apifyRun: lambda.Function;
   // Dev 2 — files
   boxRead: lambda.Function;
   boxWrite: lambda.Function;
+  boxSearch: lambda.Function;
+  boxShare: lambda.Function;
+  boxUpload: lambda.Function;
   // Dev 2 — user
   getProfile: lambda.Function;
   updateProfile: lambda.Function;
+  logTask: lambda.Function;
+  saveRoutine: lambda.Function;
   // Dev 3 — agent proxy + WebSocket relay
   chatAgent: lambda.Function;
   wsConnect: lambda.Function;
@@ -116,18 +128,22 @@ export class FunctionsStack extends cdk.Stack {
       },
     });
 
+    // Bundle all of functions/ so shared/ utilities are accessible from every handler.
+    // Handler paths include the subdirectory: e.g. 'automation/send-email.handler'.
+    const fnCode = lambda.Code.fromAsset(path.join(__dirname, '../../functions'));
+
     const mkFn = (
       id: string,
       handler: string,
-      assetDir: string,
+      subdir: string,
       extraEnv?: Record<string, string>,
       extraPolicies?: iam.PolicyStatement[],
       role?: iam.IRole,
     ): lambda.Function => {
       const fn = new lambda.Function(this, id, {
         runtime: lambda.Runtime.NODEJS_18_X,
-        handler,
-        code: lambda.Code.fromAsset(path.join(__dirname, '../../functions', assetDir)),
+        handler: `${subdir}/${handler}`,
+        code: fnCode,
         environment: { ...commonEnv, ...extraEnv },
         role: role ?? defaultLambdaRole,
         timeout: cdk.Duration.seconds(30),
@@ -150,11 +166,21 @@ export class FunctionsStack extends cdk.Stack {
       }),
     ]);
 
+    const fillForm = mkFn('FillForm', 'fill-form.handler', 'automation');
+
+    const openApplication = mkFn('OpenApplication', 'open-application.handler', 'automation', {}, [
+      new iam.PolicyStatement({
+        actions: ['ssm:SendCommand', 'ssm:GetCommandInvocation'],
+        resources: ['*'],
+      }),
+    ]);
+
+    const scheduleMeeting = mkFn('ScheduleMeeting', 'schedule-meeting.handler', 'automation');
+
     const triggerApify = mkFn('TriggerApify', 'trigger-apify.handler', 'automation');
     const checkApifyRun = mkFn('CheckApifyRun', 'check-apify-run.handler', 'automation');
 
-    // Open Interpreter dispatch — needs WS ManageConnections + WEBSOCKET_API_ENDPOINT
-    // env var WEBSOCKET_API_ENDPOINT is injected in bin/autnio.ts after WsStack is created
+    // Open Interpreter dispatch — WEBSOCKET_API_ENDPOINT injected in bin/autnio.ts after WsStack
     const dispatchOI = mkFn('DispatchOI', 'dispatch.handler', 'automation', {}, [
       new iam.PolicyStatement({
         actions: ['execute-api:ManageConnections'],
@@ -173,8 +199,6 @@ export class FunctionsStack extends cdk.Stack {
     // ── WebSocket relay Lambdas (Dev 3) ───────────────────────────────────
     const wsConnect = mkFn('WsConnect', 'ws-connect.handler', 'automation');
     const wsDisconnect = mkFn('WsDisconnect', 'ws-disconnect.handler', 'automation');
-    // wsDefault relays messages back to connected clients
-    // WEBSOCKET_API_ENDPOINT injected in bin/autnio.ts
     const wsDefault = mkFn('WsDefault', 'ws-default.handler', 'automation', {}, [
       new iam.PolicyStatement({
         actions: ['execute-api:ManageConnections'],
@@ -182,15 +206,25 @@ export class FunctionsStack extends cdk.Stack {
       }),
     ]);
 
-    // ── Files (Dev 2) ────────────────────────────────────────────────────
+    // ── Data — Apify via Bedrock Agent (Dev 2) ────────────────────────────
+    const apifyJobs = mkFn('ApifyJobs', 'apify-jobs.handler', 'data');
+    const apifyResearch = mkFn('ApifyResearch', 'apify-research.handler', 'data');
+    const apifyRun = mkFn('ApifyRun', 'apify-run.handler', 'data');
+
+    // ── Files (Dev 2) ─────────────────────────────────────────────────────
     const boxRead = mkFn('BoxRead', 'box-read.handler', 'files');
     const boxWrite = mkFn('BoxWrite', 'box-write.handler', 'files');
+    const boxSearch = mkFn('BoxSearch', 'box-search.handler', 'files');
+    const boxShare = mkFn('BoxShare', 'box-share.handler', 'files');
+    const boxUpload = mkFn('BoxUpload', 'box-upload.handler', 'files');
 
-    // ── User / Profile (Dev 2) ───────────────────────────────────────────
+    // ── User / Profile (Dev 2) ────────────────────────────────────────────
     const getProfile = mkFn('GetProfile', 'get-profile.handler', 'user');
     const updateProfile = mkFn('UpdateProfile', 'update-profile.handler', 'user');
+    const logTask = mkFn('LogTask', 'log-task.handler', 'user');
+    const saveRoutine = mkFn('SaveRoutine', 'save-routine.handler', 'user');
 
-    // ── Vision (Dev 4) ───────────────────────────────────────────────────
+    // ── Vision (Dev 4) ────────────────────────────────────────────────────
     const visionPolicy = new iam.PolicyStatement({
       actions: [
         'rekognition:DetectLabels',
@@ -219,36 +253,48 @@ export class FunctionsStack extends cdk.Stack {
     const extractText = mkFn('ExtractText', 'extract-text.handler', 'vision', {}, [visionPolicy, bedrockVisionPolicy]);
     const synthesizeSpeech = mkFn('SynthesizeSpeech', 'synthesize-speech.handler', 'vision', {}, [pollyPolicy]);
 
-    // Generates pre-signed S3 PUT URLs so the browser can upload camera frames directly
     const uploadUrl = mkFn('UploadUrl', 'upload-url.handler', 'vision');
     this.visionBucket.grantPut(uploadUrl);
     this.visionBucket.grantRead(analyzeImage);
     this.visionBucket.grantRead(extractText);
 
-    // ── Voice (Dev 5) ────────────────────────────────────────────────────
+    // ── Voice (Dev 5) ─────────────────────────────────────────────────────
     const transcribe = mkFn('Transcribe', 'transcribe.handler', 'voice', {}, [], voiceLambdaRole);
     const tts = mkFn('Tts', 'tts.handler', 'voice', {}, [], voiceLambdaRole);
 
     this.exportedFunctions = {
-      sendEmail, triggerApify, checkApifyRun, dispatchOI,
+      sendEmail, fillForm, openApplication, scheduleMeeting,
+      triggerApify, checkApifyRun, dispatchOI,
+      apifyJobs, apifyResearch, apifyRun,
       chatAgent, wsConnect, wsDisconnect, wsDefault,
-      boxRead, boxWrite,
-      getProfile, updateProfile,
+      boxRead, boxWrite, boxSearch, boxShare, boxUpload,
+      getProfile, updateProfile, logTask, saveRoutine,
       analyzeImage, extractText, synthesizeSpeech, uploadUrl,
       transcribe, tts,
     };
 
-    // ── Outputs ──────────────────────────────────────────────────────────
+    // ── Outputs ───────────────────────────────────────────────────────────
     const fnOutputs: [string, lambda.Function][] = [
       ['SendEmailArn', sendEmail],
+      ['FillFormArn', fillForm],
+      ['OpenApplicationArn', openApplication],
+      ['ScheduleMeetingArn', scheduleMeeting],
       ['TriggerApifyArn', triggerApify],
       ['CheckApifyRunArn', checkApifyRun],
       ['DispatchOIArn', dispatchOI],
+      ['ApifyJobsArn', apifyJobs],
+      ['ApifyResearchArn', apifyResearch],
+      ['ApifyRunArn', apifyRun],
       ['ChatAgentArn', chatAgent],
       ['BoxReadArn', boxRead],
       ['BoxWriteArn', boxWrite],
+      ['BoxSearchArn', boxSearch],
+      ['BoxShareArn', boxShare],
+      ['BoxUploadArn', boxUpload],
       ['GetProfileArn', getProfile],
       ['UpdateProfileArn', updateProfile],
+      ['LogTaskArn', logTask],
+      ['SaveRoutineArn', saveRoutine],
       ['AnalyzeImageArn', analyzeImage],
       ['ExtractTextArn', extractText],
       ['SynthesizeSpeechArn', synthesizeSpeech],
