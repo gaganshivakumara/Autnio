@@ -1,0 +1,92 @@
+name: Deploy Autnio
+
+on:
+  push:
+    branches:
+      - main       # → prod
+      - staging    # → staging
+      - develop    # → dev
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install infra deps
+        working-directory: infra
+        run: npm ci
+
+      - name: Build CDK TypeScript
+        working-directory: infra
+        run: npm run build
+
+      - name: Run infra tests
+        working-directory: infra
+        run: npm test --if-present
+
+  deploy:
+    name: Deploy (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    needs: test
+    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'staging' && 'staging' || 'dev' }}
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      APP_ENV: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'staging' && 'staging' || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: infra/package-lock.json
+
+      - name: Install infra deps
+        working-directory: infra
+        run: npm ci
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: CDK Bootstrap (idempotent)
+        working-directory: infra
+        run: npx cdk bootstrap --context env=${{ env.APP_ENV }}
+
+      - name: CDK Diff
+        working-directory: infra
+        run: npx cdk diff --all --context env=${{ env.APP_ENV }}
+
+      - name: CDK Deploy
+        working-directory: infra
+        run: |
+          APPROVAL=${{ env.APP_ENV == 'prod' && '--require-approval broadening' || '--require-approval never' }}
+          npx cdk deploy --all --context env=${{ env.APP_ENV }} $APPROVAL
+
+      - name: Print stack outputs
+        working-directory: infra
+        run: |
+          npx cdk list --context env=${{ env.APP_ENV }} | while read stack; do
+            aws cloudformation describe-stacks \
+              --stack-name "$stack" \
+              --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+              --output table 2>/dev/null || true
+          done

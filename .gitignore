@@ -1,0 +1,25 @@
+# CDK
+infra/node_modules/
+infra/cdk.out/
+infra/dist/
+
+# Lambda node_modules (bundle per-function instead)
+functions/**/node_modules/
+
+# Mobile
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-shared/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Env files — never commit secrets
+.env
+.env.*
+*.pem
