@@ -1,6 +1,6 @@
 // Halo — cinematic hero. Real rings video centerpiece + floating type + suspended pills.
 import { useEffect, useMemo, useRef } from "react";
-import { Button, Logo, Pill } from "./Primitives";
+import { Button, Logo } from "./Primitives";
 
 function HeroScene() {
   return (
@@ -49,8 +49,7 @@ function Grass() {
   );
 }
 
-function NavBar({ onSignIn }: { onSignIn: () => void }) {
-  const links = ["Vision", "Automation", "Awareness", "Company"];
+function NavBar() {
   return (
     <nav
       style={{
@@ -61,37 +60,10 @@ function NavBar({ onSignIn }: { onSignIn: () => void }) {
         right: 0,
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
         padding: "1.5rem clamp(1.5rem, 5vw, 4rem)",
       }}
     >
       <Logo light />
-      <div style={{ display: "flex", alignItems: "center", gap: "2.2rem" }}>
-        <div style={{ display: "flex", gap: "2rem" }} className="nav-links">
-          {links.map((l) => (
-            <a
-              key={l}
-              href="#"
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontWeight: 400,
-                fontSize: "0.92rem",
-                color: "var(--white-85)",
-                textDecoration: "none",
-                letterSpacing: "0.01em",
-                transition: "opacity var(--dur-hover) var(--ease-soft)",
-              }}
-              onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = "0.6"; }}
-              onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = "1"; }}
-            >
-              {l}
-            </a>
-          ))}
-        </div>
-        <Button variant="ghost" light onClick={onSignIn} style={{ padding: "0.6rem 1.2rem", fontSize: "0.88rem" }}>
-          Sign in
-        </Button>
-      </div>
     </nav>
   );
 }
@@ -134,7 +106,7 @@ function ScrollCue() {
   );
 }
 
-export function Hero({ onSignIn }: { onSignIn: () => void }) {
+export function Hero({ onScrollDown }: { onScrollDown: () => void }) {
   const vref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -168,7 +140,7 @@ export function Hero({ onSignIn }: { onSignIn: () => void }) {
       <div className="hero-scrim" />
       <div className="hero-fade" />
 
-      <NavBar onSignIn={onSignIn} />
+      <NavBar />
 
       {/* Floating typography */}
       <div
@@ -228,25 +200,42 @@ export function Hero({ onSignIn }: { onSignIn: () => void }) {
           halo sees what you see, automates what you need, and moves with you —
           a calm presence across every screen and street.
         </p>
-        <div style={{ display: "flex", gap: "0.9rem", marginTop: "2.4rem", flexWrap: "wrap", justifyContent: "center" }}>
-          <Button variant="primary">Request access</Button>
-          <Button variant="ghost" light>Watch the film</Button>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: "2.4rem" }}>
+          <Button variant="ghost" light onClick={onScrollDown}>Start here</Button>
         </div>
       </div>
 
-      {/* Suspended overlay pills */}
-      <Pill className="hero-pill" bob={7} delay={-1} style={{ position: "absolute", zIndex: 5, top: "24%", left: "4%" }}>
-        Awareness active
-      </Pill>
-      <Pill className="hero-pill" bob={8.5} delay={-3} style={{ position: "absolute", zIndex: 5, top: "32%", right: "4%" }}>
-        Environmental guidance
-      </Pill>
-      <Pill className="hero-pill" bob={6.5} delay={-2} style={{ position: "absolute", zIndex: 5, bottom: "15%", left: "5%" }}>
-        Navigation ready
-      </Pill>
-      <Pill className="hero-pill" bob={9} delay={-4} style={{ position: "absolute", zIndex: 5, bottom: "21%", right: "5%" }}>
-        Ambient intelligence
-      </Pill>
+      {/* Feature bullet list — left aligned */}
+      <ul
+        style={{
+          position: "absolute",
+          zIndex: 5,
+          bottom: "14%",
+          left: "clamp(1.5rem, 5vw, 4rem)",
+          listStyle: "none",
+          margin: 0,
+          padding: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.55rem",
+        }}
+      >
+        {["Awareness active", "Environmental guidance", "Navigation ready", "Ambient intelligence"].map((item) => (
+          <li
+            key={item}
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontWeight: 400,
+              fontSize: "0.75rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.22em",
+              color: "var(--white-65)",
+            }}
+          >
+            — {item}
+          </li>
+        ))}
+      </ul>
 
       <ScrollCue />
     </header>
