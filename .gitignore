@@ -29,3 +29,17 @@ node_modules/
 *.tsbuildinfo
 __pycache__/
 *.pyc
+*.pyo
+
+# Python virtualenv
+.venv/
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+
+# Cursor project files
+.cursor/
