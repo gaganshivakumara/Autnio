@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # CDK
 infra/node_modules/
 infra/cdk.out/
@@ -50,3 +51,5 @@ __pycache__/
 
 # Cursor project files
 .cursor/
+=======
+>>>>>>> 9a2f29ded423750025ac50280123caeaf911bea3
