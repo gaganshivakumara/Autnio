@@ -1,7 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BedrockAgentRuntimeClient, InvokeAgentCommand } from "@aws-sdk/client-bedrock-agent-runtime";
 import { OIRelay, type RelayEvent } from "../../relay";
 
 type RelayStatus = "idle" | "connecting" | "connected" | "closed" | "error";
+
+interface ChatMessage {
+  role: "user" | "agent";
+  text: string;
+  ts: string;
+}
+
+const AGENT_ID = "REWAIIGB5R";
+const AGENT_ALIAS_ID = "E8LQI7OUC3";
+const AWS_REGION = "us-east-1";
+const AWS_CREDS = {
+  accessKeyId: import.meta.env.VITE_AWS_ACCESS_KEY_ID as string,
+  secretAccessKey: import.meta.env.VITE_AWS_SECRET_ACCESS_KEY as string,
+};
 
 function randomTaskId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -25,26 +40,31 @@ export function App(): JSX.Element {
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("idle");
   const [logs, setLogs] = useState<string[]>([]);
 
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const sessionIdRef = useRef<string>(randomTaskId());
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const relayRef = useRef<OIRelay | null>(null);
   const appMode = queryParam("appMode") ?? "web";
 
-  const canConnect = useMemo(() => relayStatus === "idle" || relayStatus === "closed" || relayStatus === "error", [relayStatus]);
+  const canConnect = useMemo(
+    () => relayStatus === "idle" || relayStatus === "closed" || relayStatus === "error",
+    [relayStatus],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    fetch("http://localhost:8000/openai/chat/completions", {
-      method: "OPTIONS",
-    })
-      .then(() => {
-        if (!cancelled) setOiStatus("online");
-      })
-      .catch(() => {
-        if (!cancelled) setOiStatus("offline");
-      });
-    return () => {
-      cancelled = true;
-    };
+    fetch("http://localhost:8000/openai/chat/completions", { method: "OPTIONS" })
+      .then(() => { if (!cancelled) setOiStatus("online"); })
+      .catch(() => { if (!cancelled) setOiStatus("offline"); });
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const appendLog = (line: string): void => {
     setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${line}`]);
@@ -60,11 +80,7 @@ export function App(): JSX.Element {
 
   const connectRelay = (): void => {
     if (relayRef.current) relayRef.current.disconnect();
-    const relay = new OIRelay({
-      wsEndpoint,
-      idToken,
-      onEvent: handleEvent,
-    });
+    const relay = new OIRelay({ wsEndpoint, idToken, onEvent: handleEvent });
     relay.connect();
     relayRef.current = relay;
   };
@@ -76,11 +92,49 @@ export function App(): JSX.Element {
   };
 
   const simulateTask = (): void => {
-    if (!relayRef.current) {
-      appendLog("Cannot simulate task: relay not connected");
-      return;
-    }
+    if (!relayRef.current) { appendLog("Cannot simulate task: relay not connected"); return; }
     relayRef.current.simulate(taskText);
+  };
+
+  const sendAgentMessage = async (): Promise<void> => {
+    const text = chatInput.trim();
+    if (!text || chatBusy) return;
+    const ts = new Date().toLocaleTimeString();
+    setChatMessages((prev) => [...prev, { role: "user", text, ts }]);
+    setChatInput("");
+    setChatBusy(true);
+
+    try {
+      const client = new BedrockAgentRuntimeClient({ region: AWS_REGION, credentials: AWS_CREDS });
+      const cmd = new InvokeAgentCommand({
+        agentId: AGENT_ID,
+        agentAliasId: AGENT_ALIAS_ID,
+        sessionId: sessionIdRef.current,
+        inputText: text,
+        enableTrace: false,
+      });
+      const response = await client.send(cmd);
+      let agentText = "";
+      if (response.completion) {
+        for await (const event of response.completion) {
+          if (event.chunk?.bytes) {
+            agentText += new TextDecoder().decode(event.chunk.bytes);
+          }
+        }
+      }
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "agent", text: agentText || "(no response)", ts: new Date().toLocaleTimeString() },
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "agent", text: `Error: ${msg}`, ts: new Date().toLocaleTimeString() },
+      ]);
+    } finally {
+      setChatBusy(false);
+    }
   };
 
   return (
@@ -93,6 +147,59 @@ export function App(): JSX.Element {
       </p>
 
       <section className="card">
+        <h2>
+          Agent Chat{" "}
+          <span style={{ fontSize: "0.75rem", fontWeight: 400, opacity: 0.6 }}>
+            session: {sessionIdRef.current.slice(0, 8)}
+          </span>
+        </h2>
+        <div className="chatLog">
+          {chatMessages.length === 0 && (
+            <p style={{ opacity: 0.5, margin: 0 }}>No messages yet. Ask the agent anything.</p>
+          )}
+          {chatMessages.map((m, i) => (
+            <div key={i} className={`chatMsg chatMsg--${m.role}`}>
+              <div className="chatMeta">
+                <span className="chatRole">{m.role === "user" ? "You" : "Agent"}</span>
+                <span className="chatTime">{m.ts}</span>
+              </div>
+              <pre className="chatText">{m.text}</pre>
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+        <div className="chatInputRow">
+          <textarea
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void sendAgentMessage();
+              }
+            }}
+            placeholder="Ask the agent something… (Enter to send, Shift+Enter for newline)"
+            rows={2}
+            disabled={chatBusy}
+          />
+          <div className="chatButtons">
+            <button onClick={() => void sendAgentMessage()} disabled={chatBusy || !chatInput.trim()}>
+              {chatBusy ? "Thinking…" : "Send"}
+            </button>
+            <button
+              onClick={() => {
+                sessionIdRef.current = randomTaskId();
+                setChatMessages([]);
+              }}
+            >
+              New session
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>OI Relay</h2>
         <label>
           WebSocket endpoint
           <input value={wsEndpoint} onChange={(e) => setWsEndpoint(e.target.value)} />
@@ -118,7 +225,7 @@ export function App(): JSX.Element {
       </section>
 
       <section className="card">
-        <h2>Logs</h2>
+        <h2>Relay Logs</h2>
         <pre className="logs">{logs.length ? logs.join("\n") : "No logs yet."}</pre>
       </section>
     </main>
