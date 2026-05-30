@@ -58,3 +58,7 @@ __pycache__/
 computer-use/start.sh
 computer-use/start.ps1
 computer-use/start.bat
+
+# Xcode user state
+ios-lidar/**/*.xcuserstate
+ios-lidar/**/xcuserdata/
