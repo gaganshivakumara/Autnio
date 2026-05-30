@@ -8,7 +8,6 @@ export type RelayEvent =
 
 export type StartRelayOptions = {
   wsEndpoint: string;
-  idToken: string;
   onEvent?: (event: RelayEvent) => void;
 };
 
@@ -16,9 +15,9 @@ function emit(onEvent: StartRelayOptions["onEvent"], event: RelayEvent): void {
   onEvent?.(event);
 }
 
-export function startRelay({ wsEndpoint, idToken, onEvent }: StartRelayOptions): WebSocket {
+export function startRelay({ wsEndpoint, onEvent }: StartRelayOptions): WebSocket {
   emit(onEvent, { type: "status", status: "connecting" });
-  const ws = new WebSocket(`${wsEndpoint}?token=${encodeURIComponent(idToken)}`);
+  const ws = new WebSocket(wsEndpoint);
 
   ws.onopen = () => emit(onEvent, { type: "status", status: "connected" });
   ws.onclose = () => emit(onEvent, { type: "status", status: "closed" });
